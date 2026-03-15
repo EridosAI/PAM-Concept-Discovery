@@ -1,0 +1,206 @@
+{
+  "k": 50,
+  "num_clusters": 50,
+  "labels": {
+    "0": {
+      "label": "Inner reflection after encounter",
+      "description": "Characters process recent interactions through solitary contemplation, weighing emotions and reassessing relationships after meaningful exchanges."
+    },
+    "1": {
+      "label": "Investigation and procedural search",
+      "description": "Characters pursue leads, track down information, or navigate bureaucratic systems in search of persons, evidence, or solutions."
+    },
+    "2": {
+      "label": "Social maneuvering and class judgment",
+      "description": "Characters navigate social hierarchies through strategic communication, revealing class tensions and drawing lines between acceptable and contemptible behavior."
+    },
+    "3": {
+      "label": "Technical exposition and analysis",
+      "description": "Narrative pauses for detailed scientific, historical, or scholarly explanation, often with citations and empirical observations."
+    },
+    "4": {
+      "label": "Military action and tactical movement",
+      "description": "Armies maneuver, commanders assess battlefield conditions, and troops execute strategic operations during warfare."
+    },
+    "5": {
+      "label": "Religious and historical documentation",
+      "description": "Narrative shifts to church history, theological commentary, or archival records of institutions and religious practices."
+    },
+    "6": {
+      "label": "Dialogue-driven dramatic tension",
+      "description": "Character interactions unfold primarily through terse exchanges and stage directions, building conflict through verbal sparring."
+    },
+    "7": {
+      "label": "Social ritual and status display",
+      "description": "Characters engage in formal social exchanges, correspondence, or observe the material markers of class and taste."
+    },
+    "8": {
+      "label": "Financial pressure and resource management",
+      "description": "Characters confront economic constraints, negotiate compensation, or explain their monetary circumstances under duress."
+    },
+    "9": {
+      "label": "Elevated poetic or philosophical discourse",
+      "description": "Narrative voice shifts to heightened lyrical or metaphysical language, often invoking mythic or spiritual themes."
+    },
+    "10": {
+      "label": "Philosophical exposition / debate",
+      "description": "Characters or narrators engage in abstract reasoning about metaphysics, epistemology, or human nature, often presenting contrasting philosophical positions."
+    },
+    "11": {
+      "label": "Conversational redirect / story framing",
+      "description": "Dialogue shifts topic or returns to a narrative thread, often with characters managing storytelling itself or expressing uncertainty about details."
+    },
+    "12": {
+      "label": "Wilderness tracking / frontier exploration",
+      "description": "Characters navigate unmarked terrain, following trails or geographical features, often in colonial or frontier settings with attention to physical evidence."
+    },
+    "13": {
+      "label": "Moral exemplar observed",
+      "description": "A character is portrayed as embodying virtue or vice, often through a moralizing narrator's commentary on their appearance, behavior, or suffering."
+    },
+    "14": {
+      "label": "Historical documentation / chronicle",
+      "description": "Dry recitation of dates, political events, or institutional history, presented as factual record rather than dramatized narrative."
+    },
+    "15": {
+      "label": "Political/legal proceedings catalogued",
+      "description": "Legislative actions, territorial disputes, or governmental processes enumerated with bureaucratic detail and technical specificity."
+    },
+    "16": {
+      "label": "Lyrical nature description / pastoral reverie",
+      "description": "Elevated poetic language evokes landscape and atmosphere, often with contemplative mood and aesthetic appreciation of natural beauty."
+    },
+    "17": {
+      "label": "Literary-critical commentary",
+      "description": "Narrator or character analyzes literary works, authorship, or linguistic traditions, positioning texts within cultural or historical contexts."
+    },
+    "18": {
+      "label": "Medieval combat / historical action",
+      "description": "Armed conflict in pre-modern settings with period-specific weapons, loyalties, and codes of conduct, often involving betrayal or siege."
+    },
+    "19": {
+      "label": "Social degradation portrayed",
+      "description": "Characters depicted in moral or material decline, emphasizing class distinctions, shameful circumstances, or the contrast between past nobility and present misery."
+    },
+    "20": {
+      "label": "Arrival and settling in",
+      "description": "Characters arrive at new locations, establish residence, or make arrangements for accommodation and basic needs in unfamiliar settings."
+    },
+    "21": {
+      "label": "Political and social commentary",
+      "description": "Narrative pauses for exposition on social systems, political philosophy, economic theory, or institutional critique."
+    },
+    "22": {
+      "label": "Physical suffering and collapse",
+      "description": "Characters experience intense physical pain, faint, lose consciousness, or suffer bodily affliction at moments of crisis."
+    },
+    "23": {
+      "label": "Social visit interrupted",
+      "description": "Characters in polite conversation or domestic scenes are interrupted by unexpected arrivals, messages, or disturbing news."
+    },
+    "24": {
+      "label": "Technical or scholarly exposition",
+      "description": "Narrative shifts to explanatory mode, detailing professional practices, scientific principles, or grammatical rules."
+    },
+    "25": {
+      "label": "Solitary searching and dread",
+      "description": "Lone characters move through spaces searching or wandering while experiencing mounting fear or uncanny premonitions."
+    },
+    "26": {
+      "label": "Historical chronicle framing",
+      "description": "Narrative adopts historical voice to recount dates, battles, political events, and fate of nations or cities."
+    },
+    "27": {
+      "label": "Biblical quotation",
+      "description": "Direct quotations from scripture appear, usually from prophetic, epistolary, or gospel passages in formal biblical language."
+    },
+    "28": {
+      "label": "Female domestic suffering",
+      "description": "Women characters endure emotional or physical trials in domestic spaces, often involving children, isolation, or male authority."
+    },
+    "29": {
+      "label": "Chance encounter dialogue",
+      "description": "Characters meet unexpectedly and exchange brief, naturalistic conversation revealing mutual recognition or surprise."
+    },
+    "30": {
+      "label": "Conversational banter and wit",
+      "description": "Characters exchange playful, teasing, or satirical remarks, often punctuated by direct address and informal speech patterns that establish social dynamics."
+    },
+    "31": {
+      "label": "Moral exhortation and resolve",
+      "description": "Characters make solemn vows or receive earnest advice about duty, perseverance, and life principles, often framed as direct address or internal commitment."
+    },
+    "32": {
+      "label": "Expedition and cultural encounter",
+      "description": "Narration of journeys through foreign territories, including descriptions of indigenous customs, hospitality rituals, and cross-cultural observations."
+    },
+    "33": {
+      "label": "Social class observation",
+      "description": "Narrator describes characters' social standing, breeding, and manners, often with ironic distance or commentary on class pretensions and proprieties."
+    },
+    "34": {
+      "label": "Historical-political commentary",
+      "description": "Narrative voice reflects on historical events, political movements, or the nature of ambition and fame, often with philosophical detachment."
+    },
+    "35": {
+      "label": "Religious conviction and testimony",
+      "description": "Characters express or reflect on Christian faith, biblical teachings, and spiritual conviction, often in sermonic or devotional register."
+    },
+    "36": {
+      "label": "Intimate emotional revelation",
+      "description": "Characters confess feelings, share secrets, or experience intense private emotions, often in moments of vulnerability between intimates."
+    },
+    "37": {
+      "label": "Action and physical pursuit",
+      "description": "Fast-paced sequences of movement, chase, or physical struggle, marked by urgent verbs and immediate sensory detail."
+    },
+    "38": {
+      "label": "Bibliographic and indexical material",
+      "description": "Non-narrative textual apparatus including citations, catalog entries, indices, and publication metadata."
+    },
+    "39": {
+      "label": "Quotidian transaction and exchange",
+      "description": "Characters conduct ordinary business, make practical arrangements, or engage in minor social interactions with strangers or acquaintances."
+    },
+    "40": {
+      "label": "Cautionary advice and warnings given",
+      "description": "Characters relay warnings, survival instructions, or cautionary information to others, often about dangers or proper conduct."
+    },
+    "41": {
+      "label": "Vernacular dialogue and folk speech",
+      "description": "Characters speak in marked dialect or colloquial language, often reflecting regional, class, or ethnic speech patterns."
+    },
+    "42": {
+      "label": "Practical instructions and procedures",
+      "description": "Detailed procedural information, recipes, technical specifications, or step-by-step instructions for tasks or processes."
+    },
+    "43": {
+      "label": "Legal proceedings and formal disputes",
+      "description": "Court cases, official petitions, bureaucratic conflicts, or formal legal and administrative challenges unfold."
+    },
+    "44": {
+      "label": "Biographical character portraits",
+      "description": "Narrative voice describes a character's personality, history, habits, and defining traits in reflective summary."
+    },
+    "45": {
+      "label": "Historical exposition and context",
+      "description": "Narrator provides historical background, explains past events, or contextualizes the story's political and social setting."
+    },
+    "46": {
+      "label": "Emotional confrontation and refusal",
+      "description": "Characters reject proposals, express bitter disappointment, or confront past betrayals in emotionally charged exchanges."
+    },
+    "47": {
+      "label": "Military campaigns and battles",
+      "description": "Detailed accounts of warfare, troop movements, strategic decisions, and historical combat encounters."
+    },
+    "48": {
+      "label": "Picturesque scene-setting and description",
+      "description": "Detailed visual descriptions of landscapes, buildings, or atmospheric settings establish locale and mood."
+    },
+    "49": {
+      "label": "Italian cultural and artistic milieu",
+      "description": "Scenes invoke Italian settings, artistic traditions, religious imagery, or cultural customs of Italy."
+    }
+  }
+}

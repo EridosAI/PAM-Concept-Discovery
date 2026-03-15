@@ -1,0 +1,406 @@
+{
+  "k": 100,
+  "num_clusters": 100,
+  "labels": {
+    "0": {
+      "label": "Exotic/foreign setting details",
+      "description": "Passages establishing distant or unfamiliar locations through specific cultural, geographical, or historical details that transport readers to foreign landscapes."
+    },
+    "1": {
+      "label": "Comic banter and stage business",
+      "description": "Light theatrical exchanges featuring props, physical comedy, and witty repartee that provide entertainment through character interaction."
+    },
+    "2": {
+      "label": "Early modern metatheatrical commentary",
+      "description": "Self-referential discussions about performance, genre conventions, and textual choices typical of Renaissance and early English drama."
+    },
+    "3": {
+      "label": "Female domestic constraint and suffering",
+      "description": "Women enduring social limitations, tedious obligations, or emotional distress within confined domestic or courtly settings."
+    },
+    "4": {
+      "label": "Aristocratic pride and coldness",
+      "description": "Upper-class characters displaying haughty demeanor, emotional restraint, or cruel indifference that reveals class-based arrogance."
+    },
+    "5": {
+      "label": "Solitary journey with introspection",
+      "description": "Lone travelers moving through landscapes while experiencing heightened emotions, philosophical reflection, or mystical encounters."
+    },
+    "6": {
+      "label": "Frontier/Western masculine action",
+      "description": "Rough physical labor, animal handling, violence, and rustic camaraderie characteristic of Western or frontier settings."
+    },
+    "7": {
+      "label": "Social satire and class pretension",
+      "description": "Mockery of social climbers, fashion followers, and status-seekers through ironic observation of manners and customs."
+    },
+    "8": {
+      "label": "Feminine desire and social expectations",
+      "description": "Women navigating tension between personal longings and societal demands regarding marriage, motherhood, and proper conduct."
+    },
+    "9": {
+      "label": "Direct confrontation and negotiation",
+      "description": "Characters engaging in frank exchanges about problems, grievances, or arrangements that demand immediate resolution through dialogue."
+    },
+    "10": {
+      "label": "Court intrigue and betrayal revealed",
+      "description": "Characters discover deception or disloyalty through letters, reports, or observations, often involving romantic or political scheming in royal or aristocratic settings."
+    },
+    "11": {
+      "label": "Technical achievement and masculine approval",
+      "description": "Characters examine, test, or complete mechanical/technical work with satisfaction, often featuring male bonding through shared expertise or accomplishment."
+    },
+    "12": {
+      "label": "Domestic ritual and children's play",
+      "description": "Scenes of household routine, meal preparation, or children's games and minor adventures, emphasizing quotidian comfort and simple pleasures."
+    },
+    "13": {
+      "label": "Cross-cultural encounter and gift exchange",
+      "description": "Characters from different cultures meet and engage in ritualized exchanges, often involving tribal customs, supernatural elements, or colonial interactions."
+    },
+    "14": {
+      "label": "Business succession and professional burden",
+      "description": "Narrators explain commercial arrangements, partnerships, or the weight of professional responsibilities, often in first-person reflection on career matters."
+    },
+    "15": {
+      "label": "Quest preparation and sacred purpose",
+      "description": "Characters embark on journeys with religious or moral significance, making arrangements for pilgrimages, holy wars, or missions requiring divine sanction."
+    },
+    "16": {
+      "label": "Philosophical reflection and literary commentary",
+      "description": "Narrators or characters meditate on abstract themes, offer critical appraisal of ideas, or present meta-literary observations about writing and moral truth."
+    },
+    "17": {
+      "label": "Narrative address to reader",
+      "description": "Direct appeals to the reader's attention, sympathy, or judgment, often marking chapter transitions or heightening dramatic anticipation with authorial intrusion."
+    },
+    "18": {
+      "label": "Military intelligence and strategic revelation",
+      "description": "Espionage, reconnaissance, or wartime tactical information is discovered or reported, often involving hidden threats or enemy positions in military contexts."
+    },
+    "19": {
+      "label": "Historical documentation and territorial policy",
+      "description": "Exposition of political treaties, colonial administration, or geographical surveys, presenting factual records of governmental actions and territorial management."
+    },
+    "20": {
+      "label": "Atmospheric scene-setting details",
+      "description": "Descriptive passages establishing mood through environmental and sensory details, often creating contrast between light/dark, warmth/cold, or natural/human elements."
+    },
+    "21": {
+      "label": "Dialect-driven character speech",
+      "description": "Direct dialogue or narrative featuring heavy dialectical spelling and colloquial speech patterns that establish regional or class identity of speakers."
+    },
+    "22": {
+      "label": "Domestic incident recounting",
+      "description": "Characters narrating or discussing small household events, accidents, or social mishaps from the recent past, often with informal storytelling tone."
+    },
+    "23": {
+      "label": "Reference data interpolation",
+      "description": "Technical, statistical, or encyclopedic information inserted into narrative, typically geographic, demographic, or infrastructural facts presented in list format."
+    },
+    "24": {
+      "label": "Natural history exposition",
+      "description": "Didactic passages describing animal behavior, habitats, and physical characteristics, often with taxonomic or observational detail embedded in narrative."
+    },
+    "25": {
+      "label": "Dramatic courtly action",
+      "description": "High-stakes moments in historical or mythological settings featuring royal commands, executions, supernatural challenges, or violent resolution of conflicts."
+    },
+    "26": {
+      "label": "Classical or poetic quotation",
+      "description": "Excerpts from epic poetry, classical literature, or highly stylized verse integrated into prose narrative, often featuring elevated diction and mythological references."
+    },
+    "27": {
+      "label": "Architectural or antiquarian observation",
+      "description": "Descriptive commentary on buildings, monuments, historical sites, or artistic objects encountered during travel or investigation, blending guidebook and personal response."
+    },
+    "28": {
+      "label": "Scholarly or artistic reflection",
+      "description": "Intellectual discourse on creative work, academic progress, or cultural artifacts, typically from journals, letters, or autobiographical accounts of writers and scholars."
+    },
+    "29": {
+      "label": "Maritime or military action",
+      "description": "Tactical descriptions of naval battles, expeditions, or survival situations emphasizing logistics, equipment, combat maneuvers, and physical hardship."
+    },
+    "30": {
+      "label": "Religious observance and testimony",
+      "description": "Characters participate in religious services, give testimony, or engage with church communities and their formal proceedings."
+    },
+    "31": {
+      "label": "Physical pursuit or chase",
+      "description": "Characters are tracked, followed, or pursued across landscapes, often involving flight or evasion from pursuers."
+    },
+    "32": {
+      "label": "Political machinations and alliances",
+      "description": "Characters navigate religious and political factions, form alliances, and make strategic moves involving church and state power."
+    },
+    "33": {
+      "label": "Scenes of cruelty and suffering",
+      "description": "Characters witness or endure acts of violence, torture, or brutal treatment, often involving captives or victims of power."
+    },
+    "34": {
+      "label": "Non-narrative reference material",
+      "description": "Dictionary entries, glossaries, or technical reference lists that are not part of narrative storytelling."
+    },
+    "35": {
+      "label": "Romantic confession or declaration",
+      "description": "Characters discuss, confess, or reflect on romantic feelings and relationships, often with emotional intensity."
+    },
+    "36": {
+      "label": "American political history references",
+      "description": "Historical accounts of American political events, legislation, and governmental proceedings, particularly from the 19th century."
+    },
+    "37": {
+      "label": "Biographical life transitions",
+      "description": "Accounts of career changes, educational paths, and significant life decisions that shape a character's trajectory."
+    },
+    "38": {
+      "label": "Indigenous and racial encounters",
+      "description": "Interactions between white settlers and Indigenous peoples or enslaved persons, often reflecting period attitudes and conflicts."
+    },
+    "39": {
+      "label": "Detective investigation and inquiry",
+      "description": "Characters pursue clues, examine evidence, and conduct detective work to solve mysteries or crimes."
+    },
+    "40": {
+      "label": "Preface/editorial framing",
+      "description": "Paratextual material where authors, editors, or publishers introduce collections, explain publication aims, or discuss the work's context and purpose."
+    },
+    "41": {
+      "label": "Dialogue with irritation/resistance",
+      "description": "Conversational exchanges marked by annoyance, dismissiveness, or characters deflecting unwanted attention or questions."
+    },
+    "42": {
+      "label": "Ethnographic description/ritual",
+      "description": "Documentary passages describing cultural practices, ceremonies, indigenous customs, or anthropological observations with scholarly distance."
+    },
+    "43": {
+      "label": "Geographic/technical documentation",
+      "description": "Factual recording of terrain features, measurements, coordinates, or procedural details from expeditions and surveys."
+    },
+    "44": {
+      "label": "Stealthy movement/discovery",
+      "description": "Characters moving furtively through shadowy spaces, searching for hidden objects, or making careful discoveries in dim or secretive environments."
+    },
+    "45": {
+      "label": "Social observation/status awareness",
+      "description": "Narrative moments focusing on class consciousness, social positioning, and characters reflecting on reputation, ambition, or their place in society."
+    },
+    "46": {
+      "label": "Botanical/natural description",
+      "description": "Detailed observation of plant structures, growth patterns, natural phenomena, or ecological relationships presented with scientific precision."
+    },
+    "47": {
+      "label": "Glossary/linguistic reference",
+      "description": "Dictionary entries, word definitions, pronunciation guides, or linguistic annotations providing reference material outside the narrative."
+    },
+    "48": {
+      "label": "Legal/criminal case discussion",
+      "description": "Examination of legal proceedings, criminal cases, court business, or formal interrogation with attention to procedure and evidence."
+    },
+    "49": {
+      "label": "Cynical worldly wisdom",
+      "description": "Characters exchanging pragmatic, often sardonic observations about money, marriage, social survival, and the realities of human nature."
+    },
+    "50": {
+      "label": "Folklore and mythic consequences",
+      "description": "Characters face magical prohibitions, taboos, or supernatural punishments, often involving transformations or tests that go awry."
+    },
+    "51": {
+      "label": "Character enters private space",
+      "description": "A character moves into an intimate setting (bedroom, office, personal quarters) where observation or confrontation occurs."
+    },
+    "52": {
+      "label": "Political maneuvering and diplomacy",
+      "description": "Characters engage in statecraft, political strategy, or diplomatic negotiations involving historical figures or governmental affairs."
+    },
+    "53": {
+      "label": "Historical combat and retreat",
+      "description": "Military or civil conflicts unfold with forces advancing, retreating, or regrouping, often in historical or revolutionary contexts."
+    },
+    "54": {
+      "label": "Scholarly citations and references",
+      "description": "Academic footnotes, classical references, and bibliographic citations interrupt or support the narrative with historical documentation."
+    },
+    "55": {
+      "label": "Urgent pursuit through terrain",
+      "description": "Characters navigate challenging geography (water, ice, caves, wilderness) under pressure, often pursuing or fleeing."
+    },
+    "56": {
+      "label": "Emotional confrontation and vindication",
+      "description": "A character defends their honor or actions in the face of accusation, often expressing indignation or seeking to explain themselves."
+    },
+    "57": {
+      "label": "Biographical summary of character",
+      "description": "Narrator provides condensed life history or background of a character, detailing their rise, relationships, or transformation over time."
+    },
+    "58": {
+      "label": "Tender domestic moment",
+      "description": "Intimate family scenes or emotional exchanges, often involving children, parents, or loved ones in moments of care or sorrow."
+    },
+    "59": {
+      "label": "Instructional recipes and procedures",
+      "description": "Step-by-step cooking instructions, ingredient lists, or domestic guidance interrupt the narrative with practical how-to content."
+    },
+    "60": {
+      "label": "Political maneuvering and negotiation",
+      "description": "Depicts characters navigating diplomatic tensions, political pressure, and strategic decision-making in contexts of conflict or governance."
+    },
+    "61": {
+      "label": "Social commentary on women",
+      "description": "Presents expository discourse on women's roles, status, health, and societal position, often in analytical or argumentative prose."
+    },
+    "62": {
+      "label": "Civic duty and national affairs",
+      "description": "Frames narrative around patriotic obligations, governmental responsibilities, and public policy concerns in formal rhetorical registers."
+    },
+    "63": {
+      "label": "Technical process description",
+      "description": "Details scientific procedures, chemical processes, or mechanical operations with specialized terminology and instructional precision."
+    },
+    "64": {
+      "label": "Maritime travel and adventure",
+      "description": "Chronicles seafaring journeys, nautical experiences, and encounters during ocean voyages with emphasis on physical detail."
+    },
+    "65": {
+      "label": "Historical diary entries",
+      "description": "Records daily activities and social encounters in dated journal format, documenting mundane events and personal visits."
+    },
+    "66": {
+      "label": "Religious historical analysis",
+      "description": "Examines theological debates, church history, and religious doctrine through scholarly perspective and historical evidence."
+    },
+    "67": {
+      "label": "Classical military campaigns",
+      "description": "Recounts ancient warfare, Roman military movements, and historical battles with emphasis on strategic positioning and leaders."
+    },
+    "68": {
+      "label": "Literary and cultural footnotes",
+      "description": "Provides scholarly annotations, biographical details, and historical context about artists, writers, and cultural figures."
+    },
+    "69": {
+      "label": "Romantic entanglements and gossip",
+      "description": "Tracks courtship developments, social flirtations, and marriage prospects among characters in domestic or social settings."
+    },
+    "70": {
+      "label": "Scientific exposition / technical description",
+      "description": "Chunks presenting factual scientific or technical information, often describing natural phenomena, anatomical details, or experimental observations in an explanatory manner."
+    },
+    "71": {
+      "label": "Philosophical or theological argumentation",
+      "description": "Passages engaging in abstract reasoning about concepts like knowledge, truth, morality, or spiritual matters, often using formal logical structures or metaphysical language."
+    },
+    "72": {
+      "label": "Urgent private conversation",
+      "description": "Intimate dialogue between characters attempting to speak alone, often interrupted or constrained by circumstances, conveying emotional urgency or sensitive matters."
+    },
+    "73": {
+      "label": "Lyrical landscape meditation",
+      "description": "Poetic descriptions of natural settings infused with emotional reflection, often using elevated diction and metaphor to merge external scenery with internal states."
+    },
+    "74": {
+      "label": "Historical or cultural detail",
+      "description": "Passages providing specific historical facts, dates, cultural references, or documentary evidence, often about real historical figures, places, or events."
+    },
+    "75": {
+      "label": "Rhetorical debate / logical challenge",
+      "description": "Argumentative exchanges questioning premises or testing logic through hypothetical examples, often using Socratic method or dialectical reasoning to challenge assertions."
+    },
+    "76": {
+      "label": "Statistical data / records presentation",
+      "description": "Presentation of numerical data, statistics, financial records, or quantitative information, typically in documentary or historical accounting contexts."
+    },
+    "77": {
+      "label": "Character behavior observation",
+      "description": "Narrative attention to changes in character demeanor, noting shifts in mood, manner, or personality that signal internal developments or contextual changes."
+    },
+    "78": {
+      "label": "Psychological introspection / spiritual struggle",
+      "description": "Extended passages of character wrestling with internal conflicts, existential questions, or spiritual doubts, often in solitary reflection or prayer."
+    },
+    "79": {
+      "label": "Interpretive uncertainty / ambiguous perception",
+      "description": "Moments where narrator or character struggles to interpret sensory information, social cues, or situations, emphasizing gaps in understanding or unreliable perception."
+    },
+    "80": {
+      "label": "Character's physical/moral appearance described",
+      "description": "Narrative pauses to establish a character's visible traits, demeanor, or underlying nature through physical description, often revealing internal qualities."
+    },
+    "81": {
+      "label": "Religious/philosophical instruction given",
+      "description": "A wise figure delivers spiritual teachings, moral lessons, or philosophical wisdom, often in dialogue form with explicit religious or karmic themes."
+    },
+    "82": {
+      "label": "Classical/mythological narrative mode",
+      "description": "Storytelling shifts into elevated epic or mythological register, invoking gods, legendary figures, and timeless moral exemplars from ancient traditions."
+    },
+    "83": {
+      "label": "Legendary tale or folklore recounted",
+      "description": "A story-within-story begins, often featuring mythic figures, past heroes, or folk legends told in archaic or elevated language."
+    },
+    "84": {
+      "label": "Copyright/publication metadata intrusion",
+      "description": "Non-narrative text from copyright notices, publishing information, or catalog entries disrupts the fictional narrative flow."
+    },
+    "85": {
+      "label": "Scientific/technical exposition provided",
+      "description": "Narrative incorporates scientific observations, taxonomic descriptions, or technical explanations, often with specialized vocabulary and reference citations."
+    },
+    "86": {
+      "label": "Domestic routine or daily activity",
+      "description": "Characters engage in mundane everyday tasks, household maintenance, sports practice, or ordinary institutional routines that establish normalcy."
+    },
+    "87": {
+      "label": "Tense confrontation or physical standoff",
+      "description": "Characters face each other in charged moments of potential violence, with detailed attention to weapons, postures, and frozen tableaux before action."
+    },
+    "88": {
+      "label": "Professional/business interaction unfolds",
+      "description": "Characters conduct workplace transactions, employment negotiations, or formal business communications with attention to procedural and hierarchical details."
+    },
+    "89": {
+      "label": "Military campaign or battle recalled",
+      "description": "Historical military events, troop movements, or wartime leadership decisions are narrated, often with strategic analysis and retrospective commentary."
+    },
+    "90": {
+      "label": "Historical/scholarly exposition",
+      "description": "Chunks containing academic or historical documentation, often with dates, proper names, footnotes, and factual cataloging of events or sources."
+    },
+    "91": {
+      "label": "Close observation of women",
+      "description": "Male characters intently watching and analyzing women's appearance, movements, or behavior, often with romantic or aesthetic fascination."
+    },
+    "92": {
+      "label": "Tense romantic dialogue",
+      "description": "Charged conversations between potential or actual romantic partners involving confusion, confession, or emotional confrontation about their relationship."
+    },
+    "93": {
+      "label": "Night watch and vigilance",
+      "description": "Characters maintaining alert surveillance through the night, often guarding camps, following trails, or staying awake to protect others from danger."
+    },
+    "94": {
+      "label": "Religious invocation and devotion",
+      "description": "Expressions of spiritual fervor, biblical language, prayers, or theological reflection on grace, salvation, and divine presence."
+    },
+    "95": {
+      "label": "Sociological analysis",
+      "description": "Abstract commentary on social structures, cultural patterns, historical forces, or philosophical observations about society and human nature."
+    },
+    "96": {
+      "label": "Colonial India dialogue",
+      "description": "Interactions involving British colonial figures and Indian characters, featuring Hindi/Urdu terms, references to the Raj, and cross-cultural power dynamics."
+    },
+    "97": {
+      "label": "Biblical verse quotation",
+      "description": "Direct citations from scripture with chapter and verse numbers, including both canonical Bible passages and Book of Mormon references."
+    },
+    "98": {
+      "label": "Lists and catalog entries",
+      "description": "Enumerated items, bibliographic references, award listings, genealogical records, or other structured documentary information."
+    },
+    "99": {
+      "label": "Character introduction with dialogue",
+      "description": "New or colorful characters entering scenes with distinctive speech patterns, physical descriptions, and immediate conversational exchanges establishing their personality."
+    }
+  }
+}

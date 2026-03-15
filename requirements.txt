@@ -1,0 +1,10 @@
+torch>=2.0
+transformers
+sentence-transformers
+faiss-cpu
+scikit-learn
+numpy
+pandas
+anthropic
+tqdm
+requests

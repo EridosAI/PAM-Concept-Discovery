@@ -1,0 +1,2733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="darkreader-lock">
+  <meta name="color-scheme" content="dark">
+  <title>PAM 10K — Concept Discovery Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { filter: none !important; opacity: 1 !important; color-scheme: dark; }
+    body { background: #12131a; }
+    #root { min-height: 100vh; }
+    #loading {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px;
+      background: #12131a; color: #5a6478; z-index: 9999;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 13px;
+    }
+    #loading .spinner {
+      width: 24px; height: 24px; border: 2px solid #2a2d3a;
+      border-top-color: #7c8aa0; border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Crimson+Pro:ital,wght@0,400;1,400;1,500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Loading PAM 10K demo data…</div>
+  </div>
+  <div id="root"></div>
+
+  <!-- React 18 from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Data files -->
+  <script src="demo_data/metadata.js"></script>
+  <script src="demo_data/cluster_labels_all.js"></script>
+  <script src="demo_data/allnovels_k100.js"></script>
+  <script src="demo_data/book_titles.js"></script>
+  <script src="demo_data/book_index.js"></script>
+  <script src="demo_data/book_index_full.js"></script>
+
+  <!-- Held-out novels -->
+  <script src="demo_data/novel_1342.js"></script>
+  <script src="demo_data/novel_345.js"></script>
+  <script src="demo_data/novel_2701.js"></script>
+  <script src="demo_data/novel_84.js"></script>
+  <script src="demo_data/novel_1661.js"></script>
+  <script src="demo_data/novel_98.js"></script>
+  <script src="demo_data/novel_11.js"></script>
+  <script src="demo_data/novel_1260.js"></script>
+  <script src="demo_data/novel_36.js"></script>
+  <script src="demo_data/novel_174.js"></script>
+
+  <!-- In-training novels -->
+  <script src="demo_data/novel_768.js"></script>
+  <script src="demo_data/novel_2554.js"></script>
+  <script src="demo_data/novel_4300.js"></script>
+  <script src="demo_data/novel_46.js"></script>
+  <script src="demo_data/novel_43.js"></script>
+  <script src="demo_data/novel_2600.js"></script>
+
+  <!-- Babel standalone for JSX -->
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Demo component (inlined JSX to avoid CORS on file://) -->
+  <script type="text/babel">
+// ─────────────────────────────────────────────────────────────
+// PAM 10K Concept Discovery Demo
+// Genome-browser aesthetic · Dark charcoal · Three views
+// Real data from demo_data/ JSONs
+//
+// When loaded via CDN (standalone HTML), React is on window.
+// When loaded via bundler, import from "react".
+// ─────────────────────────────────────────────────────────────
+const { useState, useMemo, useRef, useEffect, useCallback } = React;
+
+// ── LLM Cluster Explainer ───────────────────────────────────
+const EXPLAIN_URL = 'https://pam-explain.jasondury.workers.dev';
+const EXPLAIN_CACHE = {};
+const RATE_LIMIT = { calls: [], sessionCount: 0 };
+
+function checkRateLimit() {
+  const now = Date.now();
+  RATE_LIMIT.calls = RATE_LIMIT.calls.filter(t => now - t < 60000);
+  if (RATE_LIMIT.calls.length >= 5) return 'minute';
+  if (RATE_LIMIT.sessionCount >= 100) return 'session';
+  return null;
+}
+
+function getClusterInfo(k, clusterId) {
+  const labels = getClusterLabels();
+  const kData = labels[String(k)];
+  if (!kData) return { label: `Cluster ${clusterId}`, description: null };
+  const info = (kData.labels || {})[String(clusterId)];
+  return { label: info?.label || `Cluster ${clusterId}`, description: info?.description || null };
+}
+
+function getClusterStats(k, clusterId) {
+  if (k === 100) {
+    const allData = getAllNovelsData();
+    if (allData) {
+      const cl = (allData.clusters || []).find(c => c.id === clusterId);
+      if (cl) return { size: cl.size, nBooks: cl.numUniqueBooks };
+    }
+  }
+  let size = 0;
+  const books = new Set();
+  NOVEL_IDS.forEach(nid => {
+    const data = getNovelData(nid);
+    if (!data) return;
+    data.chunks.forEach(c => {
+      if (c.labels[k] === clusterId) { size++; books.add(nid); }
+    });
+  });
+  return { size, nBooks: books.size };
+}
+
+function getClusterSamples(k, clusterId, excludeNovelId) {
+  const samples = [];
+  for (const nid of NOVEL_IDS) {
+    if (nid === excludeNovelId) continue;
+    const data = getNovelData(nid);
+    if (!data) continue;
+    for (const c of data.chunks) {
+      if (c.labels[k] === clusterId && c.text) {
+        samples.push({ bookId: nid, text: c.text.slice(0, 200) });
+        break;
+      }
+    }
+    if (samples.length >= 3) break;
+  }
+  if (samples.length < 3 && k === 100) {
+    const allData = getAllNovelsData();
+    if (allData) {
+      const cl = (allData.clusters || []).find(c => c.id === clusterId);
+      if (cl) {
+        for (const b of cl.topBooks) {
+          if (b.id === excludeNovelId || samples.find(s => s.bookId === b.id)) continue;
+          samples.push({ bookId: b.id, text: null });
+          if (samples.length >= 3) break;
+        }
+      }
+    }
+  }
+  return samples;
+}
+
+async function callClaudeExplain({ novelId, chunkId, k, chunkText, prevText, nextText }) {
+  const cacheKey = `${novelId}-${chunkId}-${k}`;
+  if (EXPLAIN_CACHE[cacheKey]) return EXPLAIN_CACHE[cacheKey];
+
+  const limitHit = checkRateLimit();
+  if (limitHit) throw new Error(limitHit === 'session' ? 'Session limit reached (100 calls).' : 'rate_limited');
+
+  const novel = NOVELS[novelId] || {};
+  const chunkData = getNovelData(novelId);
+  const chunk = chunkData?.chunks?.find(c => c.id === chunkId);
+  if (!chunk) throw new Error('Chunk not found');
+  const clusterId = chunk.labels[k];
+
+  const { label, description } = getClusterInfo(k, clusterId);
+  const stats = getClusterStats(k, clusterId);
+  const samples = getClusterSamples(k, clusterId, novelId);
+
+  // Build structured payload for worker proxy (prompt constructed server-side)
+  const sampleTexts = samples
+    .filter(s => s.text)
+    .map(s => ({ book: NOVELS[s.bookId]?.title || getBookTitle(s.bookId), text: s.text }));
+
+  const payload = {
+    chunkText: chunkText || '[No text available]',
+    clusterLabel: label,
+    novelTitle: novel.title || 'Unknown',
+    author: novel.author || 'Unknown',
+    k,
+    clusterSize: stats.size.toLocaleString(),
+    nBooks: stats.nBooks.toLocaleString(),
+    clusterDescription: description || '',
+    prevChunkText: prevText || '',
+    nextChunkText: nextText || '',
+    sampleTexts,
+  };
+
+  const response = await fetch(EXPLAIN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`Explain API error ${response.status}: ${errBody.slice(0, 100)}`);
+  }
+  const result = await response.json();
+  if (result.error) throw new Error(result.error);
+  const text = result.explanation;
+  EXPLAIN_CACHE[cacheKey] = text;
+  RATE_LIMIT.calls.push(Date.now());
+  RATE_LIMIT.sessionCount++;
+  return text;
+}
+
+// ── Color generation ──────────────────────────────────────────
+const goldenAngle = 137.508;
+function clusterColor(id, k) {
+  const hue = ((id * goldenAngle) + (k * 17)) % 360;
+  const sat = 55 + (id * 7 % 25);
+  const lit = 45 + (id * 3 % 15);
+  return `hsl(${hue}, ${sat}%, ${lit}%)`;
+}
+function clusterColorMuted(id, k) {
+  const hue = ((id * goldenAngle) + (k * 17)) % 360;
+  return `hsla(${hue}, 40%, 50%, 0.15)`;
+}
+
+// ── Novel registry (single source of truth) ──────────────────
+const NOVELS = {
+  // Held-out novels
+  1342: { title: "Pride and Prejudice",          author: "Jane Austen" },
+  345:  { title: "Dracula",                      author: "Bram Stoker" },
+  2701: { title: "Moby Dick",                    author: "Herman Melville" },
+  84:   { title: "Frankenstein",                  author: "Mary Shelley" },
+  1661: { title: "Adventures of Sherlock Holmes", author: "Arthur Conan Doyle" },
+  98:   { title: "A Tale of Two Cities",         author: "Charles Dickens" },
+  11:   { title: "Alice's Adventures in Wonderland", author: "Lewis Carroll" },
+  1260: { title: "Jane Eyre",                    author: "Charlotte Brontë" },
+  36:   { title: "The War of the Worlds",        author: "H.G. Wells" },
+  174:  { title: "The Picture of Dorian Gray",   author: "Oscar Wilde" },
+  // In-training novels
+  768:  { title: "Wuthering Heights",            author: "Emily Brontë" },
+  2554: { title: "Crime and Punishment",         author: "Dostoevsky" },
+  4300: { title: "Ulysses",                      author: "James Joyce" },
+  46:   { title: "A Christmas Carol",            author: "Charles Dickens" },
+  43:   { title: "Dr Jekyll and Mr Hyde",        author: "Robert Louis Stevenson" },
+  2600: { title: "War and Peace",                author: "Leo Tolstoy" },
+};
+const NOVEL_IDS = [
+  // In-training
+  768, 2554, 4300, 46, 43, 2600,
+  // Held-out
+  1342, 345, 2701, 84, 1661, 98, 11, 1260, 36, 174,
+];
+
+const K_LEVELS = [50, 100, 250, 500, 1000, 2000];
+
+// ── Data loading ─────────────────────────────────────────────
+// Data is loaded from global variables set by <script> tags:
+//   window.NOVEL_DATA_1342, window.NOVEL_DATA_345, etc.
+//   window.ALLNOVELS_K100
+//   window.CLUSTER_LABELS_ALL
+//   window.DEMO_METADATA
+
+function getNovelData(novelId) {
+  return window[`NOVEL_DATA_${novelId}`] || null;
+}
+
+function getClusterLabels() {
+  return window.CLUSTER_LABELS_ALL || {};
+}
+
+function getAllNovelsData() {
+  return window.ALLNOVELS_K100 || null;
+}
+
+function getMetadata() {
+  return window.DEMO_METADATA || null;
+}
+
+function getClusterLabel(k, clusterId) {
+  const labels = getClusterLabels();
+  const kData = labels[String(k)];
+  if (!kData) return null;
+  const clusterLabels = kData.labels || {};
+  const info = clusterLabels[String(clusterId)];
+  return info ? info.label : null;
+}
+
+function getBookTitle(bookId) {
+  const titles = window.BOOK_TITLES || {};
+  if (titles[String(bookId)]) return titles[String(bookId)];
+  const idx = (window.BOOK_INDEX || []).find(b => b.id === bookId);
+  if (idx) return idx.title;
+  return `Book #${bookId}`;
+}
+
+function computeClusterStats(k) {
+  const labels = getClusterLabels();
+  const kLabels = (labels[String(k)] || {}).labels || {};
+  const clusterMap = {};
+  let totalChunks = 0;
+  const allBooks = new Set();
+  NOVEL_IDS.forEach(nid => {
+    const data = getNovelData(nid);
+    if (!data) return;
+    allBooks.add(nid);
+    data.chunks.forEach(c => {
+      const cid = c.labels[k];
+      if (cid === undefined) return;
+      totalChunks++;
+      if (!clusterMap[cid]) clusterMap[cid] = { size: 0, books: {}, samples: [] };
+      clusterMap[cid].size++;
+      clusterMap[cid].books[nid] = (clusterMap[cid].books[nid] || 0) + 1;
+      if (clusterMap[cid].samples.length < 5) {
+        const sampleBooks = new Set(clusterMap[cid].samples.map(s => s.bookId));
+        if (!sampleBooks.has(nid) && c.text) {
+          clusterMap[cid].samples.push({ bookId: nid, text: c.text, position: c.position });
+        }
+      }
+    });
+  });
+  const fullData = k === 100 ? getAllNovelsData() : null;
+  if (fullData) {
+    return {
+      ...fullData, totalBooks: 9766,
+      clusters: (fullData.clusters || []).map(cl => ({
+        ...cl, sampleTexts: (clusterMap[cl.id] || {}).samples || [],
+      })),
+    };
+  }
+  const clusters = Object.entries(clusterMap).map(([cidStr, stats]) => {
+    const cid = Number(cidStr);
+    const info = kLabels[String(cid)];
+    const bookEntries = Object.entries(stats.books)
+      .map(([bid, count]) => ({ id: Number(bid), count }))
+      .sort((a, b) => b.count - a.count);
+    return {
+      id: cid, label: info?.label || `Cluster ${cid}`,
+      description: info?.description || null, size: stats.size,
+      numUniqueBooks: Object.keys(stats.books).length,
+      topBooks: bookEntries, sampleTexts: stats.samples,
+    };
+  });
+  return { clusters, totalChunks, totalBooks: allBooks.size, fromLoadedNovels: true };
+}
+
+// ── Chunk navigation hook ───────────────────────────────────
+function useChunkNavigation(chunks, selectedChunk, setSelectedChunk) {
+  const navigate = useCallback((dir) => {
+    if (!selectedChunk || !chunks.length) return;
+    const idx = selectedChunk.position;
+    if (dir === 1 && idx < chunks.length - 1) setSelectedChunk(chunks[idx + 1]);
+    if (dir === -1 && idx > 0) setSelectedChunk(chunks[idx - 1]);
+  }, [chunks, selectedChunk, setSelectedChunk]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [navigate]);
+
+  return navigate;
+}
+
+function useAutoScroll(scrollRef, selectedChunk, blockWidth) {
+  useEffect(() => {
+    if (!scrollRef.current || !selectedChunk) return;
+    const container = scrollRef.current;
+    const pos = selectedChunk.position;
+    // 84px = label width (72) + gap (12). Blocks are border-box so width includes border.
+    const chunkCenter = 84 + pos * blockWidth + blockWidth / 2;
+    const targetScroll = chunkCenter - container.clientWidth / 2;
+    container.scrollTo({ left: Math.max(0, targetScroll), behavior: 'smooth' });
+  }, [selectedChunk, blockWidth]);
+}
+
+// ── Components ────────────────────────────────────────────────
+
+function ChunkBlock({ chunk, k, isSelected, onClick, width = 6 }) {
+  const clusterId = chunk.labels[k];
+  const color = clusterColor(clusterId, k);
+  return (
+    <div
+      onClick={() => onClick(chunk)}
+      title={`Chunk ${chunk.id} · Cluster ${clusterId}`}
+      style={{
+        width: `${width}px`,
+        height: "24px",
+        backgroundColor: color,
+        cursor: "pointer",
+        flexShrink: 0,
+        borderRight: "1px solid rgba(0,0,0,0.15)",
+        opacity: isSelected ? 1 : 0.95,
+        outline: isSelected ? "2px solid #fff" : "none",
+        outlineOffset: "-1px",
+        transition: "opacity 0.15s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.opacity = "0.95"; }}
+    />
+  );
+}
+
+function KTrack({ chunks, k, selectedChunk, onSelectChunk, blockWidth = 6 }) {
+  return (
+    <div style={{ marginBottom: "2px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: "fit-content" }}>
+        <div style={{
+          width: "72px", flexShrink: 0, textAlign: "right",
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#8892a4", letterSpacing: "0.5px",
+        }}>
+          k={k}
+        </div>
+        <div style={{
+          display: "flex", borderRadius: "3px",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          {chunks.map((c) => (
+            <ChunkBlock
+              key={c.id}
+              chunk={c}
+              k={k}
+              isSelected={selectedChunk?.id === c.id}
+              onClick={onSelectChunk}
+              width={blockWidth}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Context Chunk Display (prev / selected / next) ───────────
+function ContextChunks({ chunk, chunks, activeK, onNavigate, onClusterClick, novelId }) {
+  const [explanations, setExplanations] = useState({});
+  const [loadingKeys, setLoadingKeys] = useState({});
+  const [dismissedKeys, setDismissedKeys] = useState({});
+
+  const handleExplain = useCallback(async (k) => {
+    if (!chunk || !novelId) return;
+    const cacheKey = `${novelId}-${chunk.id}-${k}`;
+
+    if (EXPLAIN_CACHE[cacheKey]) {
+      setExplanations(prev => ({...prev, [cacheKey]: EXPLAIN_CACHE[cacheKey]}));
+      setDismissedKeys(prev => { const next = {...prev}; delete next[cacheKey]; return next; });
+      return;
+    }
+
+    const limitHit = checkRateLimit();
+    if (limitHit) {
+      setLoadingKeys(prev => ({...prev, [cacheKey]: 'rate_limited'}));
+      setTimeout(() => setLoadingKeys(prev => { const next = {...prev}; delete next[cacheKey]; return next; }), 3000);
+      return;
+    }
+
+    setLoadingKeys(prev => ({...prev, [cacheKey]: 'loading'}));
+
+    try {
+      const idx = chunk.position;
+      const prevText = idx > 0 ? chunks[idx - 1]?.text : null;
+      const nextText = idx < chunks.length - 1 ? chunks[idx + 1]?.text : null;
+      const result = await callClaudeExplain({
+        novelId, chunkId: chunk.id, k,
+        chunkText: chunk.text, prevText, nextText,
+      });
+      setExplanations(prev => ({...prev, [cacheKey]: result}));
+      setDismissedKeys(prev => { const next = {...prev}; delete next[cacheKey]; return next; });
+    } catch (err) {
+      setExplanations(prev => ({...prev, [cacheKey]: `Error: ${err.message}`}));
+    }
+    setLoadingKeys(prev => { const next = {...prev}; delete next[cacheKey]; return next; });
+  }, [chunk, chunks, novelId]);
+
+  if (!chunk) return (
+    <div style={{
+      padding: "32px 24px", color: "#5a6478",
+      fontStyle: "italic", fontSize: "13px", textAlign: "center",
+    }}>
+      Click a chunk to view details · Arrow keys to navigate
+    </div>
+  );
+
+  const idx = chunk.position;
+  const hasPrev = idx > 0;
+  const hasNext = idx < chunks.length - 1;
+
+  const contextChunks = [];
+  if (hasPrev) contextChunks.push({ chunk: chunks[idx - 1], role: "before" });
+  contextChunks.push({ chunk: chunks[idx], role: "selected" });
+  if (hasNext) contextChunks.push({ chunk: chunks[idx + 1], role: "after" });
+
+  const navBtnStyle = (enabled) => ({
+    width: "32px", height: "32px", borderRadius: "4px",
+    border: "1px solid rgba(255,255,255,0.08)",
+    backgroundColor: enabled ? "rgba(255,255,255,0.04)" : "transparent",
+    color: enabled ? "#8892a4" : "#2a2d3a",
+    fontSize: "16px", cursor: enabled ? "pointer" : "default",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    transition: "all 0.15s", flexShrink: 0,
+  });
+
+  return (
+    <div style={{ padding: "20px 24px" }}>
+      {/* Header with ‹/› navigation */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: "16px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+        paddingBottom: "12px",
+      }}>
+        <button
+          onClick={() => hasPrev && onNavigate && onNavigate(-1)}
+          style={navBtnStyle(hasPrev)}
+          title="Previous chunk (←)"
+          onMouseEnter={(e) => { if (hasPrev) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; }}
+          onMouseLeave={(e) => { if (hasPrev) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+        >‹</button>
+        <span style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#8892a4",
+        }}>
+          Chunk {chunk.id} · Position {chunk.position}/{chunks.length - 1}
+        </span>
+        <button
+          onClick={() => hasNext && onNavigate && onNavigate(1)}
+          style={navBtnStyle(hasNext)}
+          title="Next chunk (→)"
+          onMouseEnter={(e) => { if (hasNext) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; }}
+          onMouseLeave={(e) => { if (hasNext) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+        >›</button>
+      </div>
+
+      {/* Context chunks */}
+      <div style={{ marginBottom: "20px" }}>
+        {contextChunks.map(({ chunk: c, role }) => {
+          const isSelected = role === "selected";
+          const clusterId = c.labels[activeK];
+          const color = clusterColor(clusterId, activeK);
+          const label = getClusterLabel(activeK, clusterId) || `#${clusterId}`;
+
+          return (
+            <div key={c.id} style={{ marginBottom: "12px" }}>
+              {/* Cluster label tag */}
+              <div
+                onClick={(e) => { if (onClusterClick) { e.stopPropagation(); onClusterClick(activeK, clusterId); } }}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: "5px",
+                  padding: "2px 8px", borderRadius: "3px", marginBottom: "6px",
+                  backgroundColor: isSelected ? clusterColorMuted(clusterId, activeK) : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${isSelected ? color + "40" : "rgba(255,255,255,0.04)"}`,
+                  cursor: onClusterClick ? "pointer" : "default",
+                }}>
+                <div style={{
+                  width: "7px", height: "7px", borderRadius: "2px",
+                  backgroundColor: color,
+                }} />
+                <span style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: "11px",
+                  color: isSelected ? "#c8cdd8" : "#5a6478",
+                }}>
+                  {label}
+                </span>
+              </div>
+
+              {/* Text block */}
+              <div style={{
+                fontFamily: "'Crimson Pro', 'Crimson Text', Georgia, serif",
+                fontSize: isSelected ? "15px" : "13px",
+                lineHeight: "1.65",
+                color: isSelected ? "#c8cdd8" : "#6b7588",
+                padding: "12px 16px",
+                backgroundColor: isSelected ? "rgba(255,255,255,0.02)" : "transparent",
+                borderRadius: "6px",
+                borderLeft: isSelected
+                  ? `3px solid ${color}`
+                  : "3px solid rgba(255,255,255,0.04)",
+                transition: "all 0.15s",
+              }}>
+                {c.text || "[No text]"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Cluster assignments */}
+      <div style={{ fontSize: "12px" }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          color: "#6b7588", fontSize: "11px", textTransform: "uppercase",
+          letterSpacing: "1.5px", marginBottom: "10px",
+        }}>
+          Cluster Assignments
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {K_LEVELS.map((k) => {
+            const cid = chunk.labels[k];
+            if (cid === undefined) return null;
+            const label = getClusterLabel(k, cid);
+            const cacheKey = `${novelId}-${chunk.id}-${k}`;
+            const isLoading = loadingKeys[cacheKey];
+            return (
+              <div key={k} onClick={() => onClusterClick && onClusterClick(k, cid)} style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "6px 12px", borderRadius: "4px",
+                backgroundColor: clusterColorMuted(cid, k),
+                border: `1px solid ${clusterColor(cid, k)}40`,
+                cursor: onClusterClick ? "pointer" : "default",
+              }}>
+                <div style={{
+                  width: "10px", height: "10px", borderRadius: "2px",
+                  backgroundColor: clusterColor(cid, k),
+                }} />
+                <span style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  color: "#8892a4", fontSize: "12px",
+                }}>
+                  k={k}: <span style={{ color: "#c8cdd8" }}>#{cid}</span>
+                  {label && <span style={{ color: "#7a8496", marginLeft: "4px" }}>
+                    {label}
+                  </span>}
+                </span>
+                {isLoading === 'loading' ? (
+                  <span className="explain-pulse" style={{
+                    marginLeft: "2px", color: "#7c8aa0", fontSize: "11px",
+                  }}>{"\u25CF"}</span>
+                ) : isLoading === 'rate_limited' ? (
+                  <span style={{
+                    marginLeft: "2px", fontSize: "10px", color: "#b48c50",
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  }}>wait...</span>
+                ) : (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); handleExplain(k); }}
+                    style={{
+                      marginLeft: "6px", cursor: "pointer", fontSize: "14px",
+                      color: "#7c8aa0", transition: "all 0.15s",
+                      fontWeight: "bold",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "#e8ecf4"; e.currentTarget.style.textShadow = "0 0 6px rgba(255,255,255,0.3)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = "#7c8aa0"; e.currentTarget.style.textShadow = "none"; }}
+                    title="Explain this cluster assignment"
+                  >{"\u2726"}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* LLM Explanations */}
+        {K_LEVELS.map((k) => {
+          const cacheKey = `${novelId}-${chunk.id}-${k}`;
+          const explanation = explanations[cacheKey];
+          if (!explanation || dismissedKeys[cacheKey]) return null;
+          const cid = chunk.labels[k];
+          const label = getClusterLabel(k, cid) || `#${cid}`;
+          return (
+            <div key={`exp-${k}`} style={{
+              marginTop: "12px", padding: "12px 16px",
+              backgroundColor: "rgba(255,255,255,0.03)",
+              borderRadius: "6px", border: "1px solid rgba(255,255,255,0.06)",
+            }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                marginBottom: "8px",
+              }}>
+                <span style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: "11px", color: "#5a6478",
+                }}>
+                  {"\u2726"} k={k} · {label}
+                </span>
+                <span
+                  onClick={() => setDismissedKeys(prev => ({...prev, [cacheKey]: true}))}
+                  style={{
+                    cursor: "pointer", color: "#4a5468", fontSize: "14px",
+                    lineHeight: "1", padding: "2px 4px", borderRadius: "3px",
+                    transition: "color 0.15s",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "#8892a4"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = "#4a5468"}
+                >{"\u00D7"}</span>
+              </div>
+              <div style={{
+                fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+                fontSize: "14px", color: "#a8b2c4", lineHeight: "1.6",
+              }}>
+                {explanation}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── View 1: Narrative Timeline ────────────────────────────────
+const ZOOM_WINDOW = 50; // chunks visible in zoom bar
+
+function NarrativeTimeline({ novelId, chunks, navigateTo, targetChunkPos, onClearTarget }) {
+  const [selectedK, setSelectedK] = useState(100);
+  const [selectedChunk, setSelectedChunk] = useState(null);
+  const arcRef = useRef(null);
+
+  const navigate = useChunkNavigation(chunks, selectedChunk, setSelectedChunk);
+
+  // Jump to target chunk when navigated from ClusterExplorer
+  useEffect(() => {
+    if (targetChunkPos != null && chunks[targetChunkPos]) {
+      setSelectedChunk(chunks[targetChunkPos]);
+      if (onClearTarget) onClearTarget();
+    }
+  }, [targetChunkPos, chunks]);
+
+  // Zoom window: ~50 chunks centered on selection
+  const zoomCenter = selectedChunk ? selectedChunk.position : 0;
+  const halfWin = Math.floor(ZOOM_WINDOW / 2);
+  const zoomStart = Math.max(0, Math.min(zoomCenter - halfWin, chunks.length - ZOOM_WINDOW));
+  const zoomEnd = Math.min(zoomStart + ZOOM_WINDOW, chunks.length);
+  const zoomChunks = chunks.slice(zoomStart, zoomEnd);
+  const zoomBlockWidth = 16; // wide blocks for clickability
+
+  const segments = useMemo(() => {
+    const runs = [];
+    let current = null;
+    chunks.forEach((c) => {
+      const cid = c.labels[selectedK];
+      if (!current || current.clusterId !== cid) {
+        if (current) runs.push(current);
+        current = { clusterId: cid, start: c.id, end: c.id, count: 1 };
+      } else {
+        current.end = c.id;
+        current.count++;
+      }
+    });
+    if (current) runs.push(current);
+    return runs;
+  }, [chunks, selectedK]);
+
+  const clusterOrder = useMemo(() => {
+    const seen = new Set();
+    const order = [];
+    chunks.forEach((c) => {
+      const cid = c.labels[selectedK];
+      if (!seen.has(cid)) { seen.add(cid); order.push(cid); }
+    });
+    return order;
+  }, [chunks, selectedK]);
+
+  // Click handler for narrative arc — jump zoom window to that position
+  const handleArcClick = useCallback((e) => {
+    if (!arcRef.current) return;
+    const rect = arcRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = x / rect.width;
+    const idx = Math.min(Math.max(0, Math.floor(pct * chunks.length)), chunks.length - 1);
+    setSelectedChunk(chunks[idx]);
+  }, [chunks]);
+
+  // Viewport indicator position (percentage of arc)
+  const vpLeft = (zoomStart / chunks.length) * 100;
+  const vpWidth = ((zoomEnd - zoomStart) / chunks.length) * 100;
+
+  return (
+    <div>
+      {/* K Slider */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "16px",
+        marginBottom: "24px", padding: "16px 20px",
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        <span style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#6b7588", textTransform: "uppercase",
+          letterSpacing: "1.5px", flexShrink: 0,
+        }}>
+          Granularity
+        </span>
+        <div style={{ display: "flex", gap: "4px" }}>
+          {K_LEVELS.map((k) => (
+            <button
+              key={k}
+              onClick={() => setSelectedK(k)}
+              style={{
+                padding: "6px 14px", borderRadius: "4px",
+                border: selectedK === k ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)",
+                backgroundColor: selectedK === k ? "rgba(255,255,255,0.08)" : "transparent",
+                color: selectedK === k ? "#e8ecf4" : "#6b7588",
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: "12px", cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              k={k}
+            </button>
+          ))}
+        </div>
+        <div style={{
+          marginLeft: "auto", fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#5a6478",
+        }}>
+          {clusterOrder.length} clusters active · {chunks.length} chunks
+        </div>
+      </div>
+
+      {/* Narrative Arc — full overview with viewport indicator */}
+      <div style={{ marginBottom: "8px" }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "11px", color: "#5a6478", textTransform: "uppercase",
+          letterSpacing: "1.5px", marginBottom: "8px", paddingLeft: "84px",
+        }}>
+          Narrative Arc
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            width: "72px", flexShrink: 0, textAlign: "right",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "12px", color: "#8892a4",
+          }}>
+            k={selectedK}
+          </div>
+          <div
+            ref={arcRef}
+            onClick={handleArcClick}
+            style={{
+              display: "flex", overflow: "visible", borderRadius: "4px",
+              border: "1px solid rgba(255,255,255,0.06)", flex: 1,
+              position: "relative", cursor: "crosshair",
+            }}
+          >
+            {segments.map((seg, i) => {
+              const pct = (seg.count / chunks.length) * 100;
+              const label = getClusterLabel(selectedK, seg.clusterId) || `#${seg.clusterId}`;
+              return (
+                <div
+                  key={i}
+                  title={`${label} (chunks ${seg.start}–${seg.end})`}
+                  style={{
+                    width: `${pct}%`, minWidth: "1px", height: "28px",
+                    backgroundColor: clusterColor(seg.clusterId, selectedK),
+                    borderRight: "1px solid rgba(0,0,0,0.4)",
+                    transition: "filter 0.15s",
+                  }}
+                />
+              );
+            })}
+            {/* Viewport indicator — selection bracket extending beyond bar */}
+            {selectedChunk && (
+              <div style={{
+                position: "absolute", top: "-5px", bottom: "-5px",
+                left: `${vpLeft}%`, width: `${vpWidth}%`,
+                backgroundColor: "rgba(255,255,255,0.05)",
+                border: "2px solid rgba(255,255,255,0.8)",
+                borderRadius: "2px",
+                pointerEvents: "none",
+              }} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Zoom bar — ~50 chunks centered on selection */}
+      <div style={{ marginBottom: "24px" }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "11px", color: "#5a6478", textTransform: "uppercase",
+          letterSpacing: "1.5px", marginBottom: "8px", paddingLeft: "84px",
+        }}>
+          Zoom · Chunks {zoomStart}–{zoomEnd - 1}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            width: "72px", flexShrink: 0, textAlign: "right",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "12px", color: "#8892a4",
+          }}>
+            k={selectedK}
+          </div>
+          <div style={{
+            display: "flex", borderRadius: "4px",
+            border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden",
+          }}>
+            {zoomChunks.map((c) => {
+              const clusterId = c.labels[selectedK];
+              const color = clusterColor(clusterId, selectedK);
+              const isSel = selectedChunk?.id === c.id;
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedChunk(c)}
+                  title={`Chunk ${c.id} · Cluster ${clusterId}`}
+                  style={{
+                    width: `${zoomBlockWidth}px`, height: "32px",
+                    backgroundColor: color, cursor: "pointer",
+                    flexShrink: 0,
+                    borderRight: "1px solid rgba(0,0,0,0.3)",
+                    opacity: isSel ? 1 : 0.8,
+                    outline: isSel ? "2px solid #fff" : "none",
+                    outlineOffset: "-1px",
+                    transition: "opacity 0.1s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                  onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.opacity = "0.8"; }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Detail Panel with context */}
+      <div style={{
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        <ContextChunks chunk={selectedChunk} chunks={chunks} activeK={selectedK} onNavigate={navigate}
+          onClusterClick={navigateTo ? (k, cid) => navigateTo({ view: "allnovels", k, clusterId: cid }) : null}
+          novelId={novelId} />
+      </div>
+    </div>
+  );
+}
+
+// ── View 2: Held-Out Novel (Stacked K Bars) ──────────────────
+function HeldOutNovel({ novelId, chunks, navigateTo }) {
+  const [selectedChunk, setSelectedChunk] = useState(null);
+  const [activeK, setActiveK] = useState(100);
+  const trackScrollRef = useRef(null);
+  const blockWidth = Math.max(9, Math.min(18, Math.floor(3300 / chunks.length)));
+  const navigate = useChunkNavigation(chunks, selectedChunk, setSelectedChunk);
+  useAutoScroll(trackScrollRef, selectedChunk, blockWidth);
+
+  return (
+    <div>
+      <div style={{
+        display: "flex", alignItems: "center", gap: "16px",
+        marginBottom: "12px",
+      }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "11px", color: "#5a6478", textTransform: "uppercase",
+          letterSpacing: "1.5px", paddingLeft: "84px",
+        }}>
+          Hierarchical Cluster View — All K Levels
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "4px", alignItems: "center" }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "11px", color: "#4a5468",
+          }}>
+            Context color:
+          </span>
+          {K_LEVELS.map((k) => (
+            <button key={k} onClick={() => setActiveK(k)} style={{
+              padding: "2px 8px", borderRadius: "3px", fontSize: "11px",
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              border: activeK === k ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.04)",
+              backgroundColor: activeK === k ? "rgba(255,255,255,0.06)" : "transparent",
+              color: activeK === k ? "#c8cdd8" : "#4a5468",
+              cursor: "pointer",
+            }}>
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div ref={trackScrollRef} style={{
+        overflowX: "auto", paddingBottom: "12px", marginBottom: "24px",
+      }}>
+        {K_LEVELS.map((k) => (
+          <KTrack
+            key={k}
+            chunks={chunks}
+            k={k}
+            selectedChunk={selectedChunk}
+            onSelectChunk={setSelectedChunk}
+            blockWidth={blockWidth}
+          />
+        ))}
+
+        {/* Scrollable position ruler — ticks every ~1/4 of visible width */}
+        {(() => {
+          const totalWidth = chunks.length * blockWidth;
+          // Place a tick every ~300px (roughly 3-4 visible on screen)
+          const tickSpacingPx = 300;
+          const tickSpacingChunks = Math.max(1, Math.round(tickSpacingPx / blockWidth));
+          // Round to nice numbers
+          const niceIntervals = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+          const tickInterval = niceIntervals.find(n => n >= tickSpacingChunks) || tickSpacingChunks;
+          const ticks = [];
+          for (let i = 0; i <= chunks.length; i += tickInterval) {
+            ticks.push(i);
+          }
+          // Always include the last chunk
+          if (ticks[ticks.length - 1] !== chunks.length) {
+            ticks.push(chunks.length);
+          }
+          return (
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: "12px",
+              minWidth: "fit-content", marginTop: "2px",
+            }}>
+              <div style={{ width: "72px", flexShrink: 0 }} />
+              <div style={{
+                position: "relative",
+                width: `${totalWidth}px`,
+                height: "16px",
+                flexShrink: 0,
+              }}>
+                {ticks.map((chunkIdx) => {
+                  const pct = (chunkIdx / chunks.length) * 100;
+                  return (
+                    <span key={chunkIdx} style={{
+                      position: "absolute",
+                      left: `${pct}%`,
+                      transform: chunkIdx === chunks.length ? "translateX(-100%)" : chunkIdx === 0 ? "none" : "translateX(-50%)",
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      fontSize: "10px",
+                      color: "#5a6478",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {chunkIdx.toLocaleString()}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Fractal Structure Indicator */}
+      {selectedChunk && (
+        <div style={{
+          padding: "16px 20px", marginBottom: "16px",
+          backgroundColor: "rgba(255,255,255,0.02)",
+          borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)",
+        }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "11px", color: "#5a6478", textTransform: "uppercase",
+            letterSpacing: "1.5px", marginBottom: "10px",
+          }}>
+            Fractal Decomposition — Chunk {selectedChunk.id}
+          </div>
+          <div style={{ display: "flex", gap: "4px", alignItems: "stretch" }}>
+            {K_LEVELS.map((k, i) => {
+              const cid = selectedChunk.labels[k];
+              if (cid === undefined) return null;
+              const label = getClusterLabel(k, cid);
+              // Determine text color from HSL lightness
+              const hue = ((cid * goldenAngle) + (k * 17)) % 360;
+              const lit = 45 + (cid * 3 % 15);
+              const textColor = lit > 55 ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.9)";
+              // Split long labels into two lines
+              const labelLines = label ? (() => {
+                if (label.length <= 20) return [label];
+                const mid = Math.ceil(label.length / 2);
+                const spaceAfter = label.indexOf(" ", mid);
+                const spaceBefore = label.lastIndexOf(" ", mid);
+                const split = spaceAfter !== -1 && (spaceAfter - mid < mid - spaceBefore || spaceBefore === -1)
+                  ? spaceAfter : spaceBefore !== -1 ? spaceBefore : mid;
+                return [label.slice(0, split), label.slice(split + 1)];
+              })() : null;
+              return (
+                <div key={k} style={{ flex: 1, textAlign: "center", cursor: navigateTo ? "pointer" : "default" }}
+                  onClick={() => navigateTo && navigateTo({ view: "allnovels", k, clusterId: cid })}>
+                  <div style={{
+                    height: "42px", borderRadius: "4px",
+                    backgroundColor: clusterColor(cid, k),
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    marginBottom: "4px", padding: "2px 4px",
+                  }}>
+                    {labelLines ? (
+                      <div style={{
+                        fontSize: "13px", fontWeight: 500, color: textColor,
+                        lineHeight: "1.2", textAlign: "center",
+                        overflow: "hidden",
+                      }}>
+                        {labelLines.map((line, li) => <div key={li}>{line}</div>)}
+                      </div>
+                    ) : (
+                      <span style={{
+                        fontSize: "13px", fontWeight: 600, color: textColor,
+                      }}>
+                        #{cid}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    fontSize: "10px", color: "#5a6478",
+                  }}>
+                    k={k} · #{cid}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        <ContextChunks chunk={selectedChunk} chunks={chunks} activeK={activeK} onNavigate={navigate}
+          onClusterClick={navigateTo ? (k, cid) => navigateTo({ view: "allnovels", k, clusterId: cid }) : null}
+          novelId={novelId} />
+      </div>
+    </div>
+  );
+}
+
+// ── View 3: Cluster Explorer ──────────────────────────────────
+function ClusterExplorer({ selectedK, onChangeK, focusClusterId, onClearFocus, navigateTo }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const [sortBy, setSortBy] = useState("size");
+
+  const allData = useMemo(() => computeClusterStats(selectedK), [selectedK]);
+  const clusters = allData?.clusters || [];
+  const totalBooks = allData?.totalBooks || 0;
+  const fromLoaded = allData?.fromLoadedNovels || false;
+
+  // Handle focus from external navigation
+  useEffect(() => {
+    if (focusClusterId !== null && focusClusterId !== undefined) {
+      setExpandedId(focusClusterId);
+      setTimeout(() => {
+        const el = document.getElementById(`cluster-row-${focusClusterId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+      if (onClearFocus) onClearFocus();
+    }
+  }, [focusClusterId]);
+
+  const sorted = useMemo(() => {
+    const s = [...clusters];
+    if (sortBy === "size") s.sort((a, b) => b.size - a.size);
+    else if (sortBy === "books") s.sort((a, b) => b.numUniqueBooks - a.numUniqueBooks);
+    else s.sort((a, b) => a.id - b.id);
+    return s;
+  }, [clusters, sortBy]);
+
+  const maxSize = sorted.length > 0 ? Math.max(...sorted.map(c => c.size)) : 1;
+
+  return (
+    <div>
+      {/* K-level selector */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "16px",
+        marginBottom: "12px", padding: "16px 20px",
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        <span style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#6b7588", textTransform: "uppercase",
+          letterSpacing: "1.5px", flexShrink: 0,
+        }}>
+          Granularity
+        </span>
+        <div style={{ display: "flex", gap: "4px" }}>
+          {K_LEVELS.map((k) => (
+            <button
+              key={k}
+              onClick={() => onChangeK(k)}
+              style={{
+                padding: "6px 14px", borderRadius: "4px",
+                border: selectedK === k ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)",
+                backgroundColor: selectedK === k ? "rgba(255,255,255,0.08)" : "transparent",
+                color: selectedK === k ? "#e8ecf4" : "#6b7588",
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: "12px", cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              k={k}
+            </button>
+          ))}
+        </div>
+        <div style={{
+          marginLeft: "auto", fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#5a6478",
+        }}>
+          {clusters.length} clusters · k={selectedK} · {allData?.totalChunks?.toLocaleString() || "?"} chunks
+          {fromLoaded && ` · ${totalBooks} loaded novels`}
+        </div>
+      </div>
+
+      {/* Sort controls */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap",
+        marginBottom: "20px", padding: "12px 20px",
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        <span style={{
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: "12px", color: "#6b7588", textTransform: "uppercase",
+          letterSpacing: "1.5px",
+        }}>
+          Sort by
+        </span>
+        {["id", "size", "books"].map((s) => (
+          <button key={s} onClick={() => setSortBy(s)} style={{
+            padding: "4px 12px", borderRadius: "4px",
+            border: sortBy === s ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)",
+            backgroundColor: sortBy === s ? "rgba(255,255,255,0.08)" : "transparent",
+            color: sortBy === s ? "#e8ecf4" : "#6b7588",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "12px", cursor: "pointer",
+          }}>
+            {s === "id" ? "Cluster ID" : s === "size" ? "Size" : "Book Coverage"}
+          </button>
+        ))}
+        {sortBy === "books" && (
+          <span style={{
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "11px", color: "#4a5468", fontStyle: "italic",
+          }}>
+            Most universal narrative functions first
+          </span>
+        )}
+      </div>
+
+      {/* Cluster list */}
+      <div style={{
+        display: "flex", flexDirection: "column", gap: "4px",
+        maxHeight: "70vh", overflowY: "auto",
+      }}>
+        {sorted.map((cl) => {
+          const isExpanded = expandedId === cl.id;
+          const barWidth = (cl.size / maxSize) * 100;
+          const coveragePct = totalBooks > 0 ? Math.round((cl.numUniqueBooks / totalBooks) * 100) : 0;
+          return (
+            <div key={cl.id} id={`cluster-row-${cl.id}`}>
+              <div
+                onClick={() => setExpandedId(isExpanded ? null : cl.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "8px 16px", borderRadius: "6px",
+                  backgroundColor: isExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
+                  border: isExpanded ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.03)",
+                  cursor: "pointer", transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { if (!isExpanded) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.015)"; }}
+              >
+                <div style={{
+                  width: "12px", height: "12px", borderRadius: "3px",
+                  backgroundColor: clusterColor(cl.id, selectedK), flexShrink: 0,
+                }} />
+                <div style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: "12px", color: "#5a6478", width: "32px", flexShrink: 0,
+                }}>
+                  #{cl.id}
+                </div>
+                <div style={{
+                  fontSize: "13px", color: "#c8cdd8", width: "260px",
+                  flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}>
+                  {cl.label}
+                </div>
+                <div style={{ flex: 1, position: "relative", height: "16px" }}>
+                  <div style={{
+                    position: "absolute", left: 0, top: 0,
+                    width: `${Math.min(barWidth, 100)}%`,
+                    height: "100%", borderRadius: "3px",
+                    backgroundColor: clusterColor(cl.id, selectedK),
+                    opacity: 0.4,
+                  }} />
+                </div>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: "11px", color: "#6b7588", width: "70px",
+                  textAlign: "right", flexShrink: 0,
+                }}>
+                  {cl.size.toLocaleString()}
+                </div>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontSize: "11px", color: "#6b7588", width: "130px",
+                  textAlign: "right", flexShrink: 0,
+                }}>
+                  {cl.numUniqueBooks.toLocaleString()} / {totalBooks.toLocaleString()} ({coveragePct}%)
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div style={{
+                  marginLeft: "56px", padding: "12px 16px",
+                  borderLeft: `2px solid ${clusterColor(cl.id, selectedK)}40`,
+                }}>
+                  {cl.description && (
+                    <div style={{
+                      fontSize: "13px", color: "#8892a4", marginBottom: "12px",
+                      lineHeight: "1.5",
+                    }}>
+                      {cl.description}
+                    </div>
+                  )}
+                  {/* Top contributing novels */}
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    fontSize: "11px", color: "#5a6478", marginBottom: "6px",
+                    textTransform: "uppercase", letterSpacing: "1px",
+                  }}>
+                    Top contributing novels
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "16px" }}>
+                    {cl.topBooks.slice(0, 10).map((b) => {
+                      const isLoaded = !!getNovelData(b.id);
+                      const novelInfo = NOVELS[b.id];
+                      const bookTitle = novelInfo?.title || getBookTitle(b.id);
+                      const handleNovelClick = (e) => {
+                        e.stopPropagation();
+                        if (!navigateTo) return;
+                        // Find first chunk matching this cluster in the loaded novel data
+                        let chunkPos;
+                        const nd = getNovelData(b.id);
+                        if (nd) {
+                          const match = nd.chunks.find(c => c.labels[selectedK] === cl.id);
+                          if (match) chunkPos = match.position;
+                        }
+                        navigateTo({ view: "timeline", novelId: b.id, chunkPos });
+                      };
+                      return (
+                        <div key={b.id}
+                          onClick={handleNovelClick}
+                          style={{
+                            display: "flex", alignItems: "center", gap: "8px",
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            padding: "2px 4px", borderRadius: "3px",
+                            transition: "background-color 0.1s",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                        >
+                          <span style={{ color: "#4a5468", width: "50px", textAlign: "right", flexShrink: 0 }}>
+                            #{b.id}
+                          </span>
+                          <span style={{
+                            color: "#a8b2c4",
+                            flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}>
+                            {bookTitle}
+                            {novelInfo && <span style={{ color: "#5a6478", marginLeft: "6px" }}>{novelInfo.author}</span>}
+                          </span>
+                          <span style={{ color: "#5a6478", flexShrink: 0 }}>
+                            {b.count.toLocaleString()} chunks
+                          </span>
+                          <span style={{ color: "#5a6478", fontSize: "11px" }}>
+                            {isLoaded ? "→" : "\u2913"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Sample texts */}
+                  {cl.sampleTexts && cl.sampleTexts.length > 0 && (
+                    <>
+                      <div style={{
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        fontSize: "11px", color: "#5a6478", marginBottom: "6px",
+                        textTransform: "uppercase", letterSpacing: "1px",
+                      }}>
+                        Sample texts
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        {cl.sampleTexts.slice(0, 3).map((s, i) => (
+                          <div key={i} style={{
+                            padding: "8px 12px", borderRadius: "4px",
+                            backgroundColor: "rgba(255,255,255,0.02)",
+                            border: "1px solid rgba(255,255,255,0.04)",
+                          }}>
+                            <div style={{
+                              fontFamily: "'Crimson Pro', Georgia, serif",
+                              fontSize: "13px", color: "#8892a4", lineHeight: "1.5",
+                              fontStyle: "italic", marginBottom: "4px",
+                            }}>
+                              "{s.text}"
+                            </div>
+                            <div style={{
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                              fontSize: "10px", color: "#4a5468",
+                            }}>
+                              — {NOVELS[s.bookId]?.title || getBookTitle(s.bookId)} · chunk {s.position}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Data: Book Index ─────────────────────────────────────────
+function getBookIndex() {
+  return window.BOOK_INDEX || [];
+}
+
+const SERVER_URL = "https://pam-server.jasondury.workers.dev";
+
+// ── Analyze Upload ──────────────────────────────────────────
+function AnalyzeUpload({ navigateTo, onAnalysisComplete }) {
+  const [mode, setMode] = useState(null); // null, "paste", "file"
+  const [text, setText] = useState("");
+  const [title, setTitle] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [progress, setProgress] = useState([]);
+  const [error, setError] = useState(null);
+  const [rateInfo, setRateInfo] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const resetState = () => {
+    setMode(null);
+    setText("");
+    setTitle("");
+    setError(null);
+    setProgress([]);
+    setAnalyzing(false);
+  };
+
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError("File too large (max 5MB)");
+      return;
+    }
+
+    const name = file.name.replace(/\.(txt|epub)$/i, "");
+    setTitle(name);
+
+    if (file.name.toLowerCase().endsWith(".epub")) {
+      // Send EPUB directly to server
+      submitFile(file, name);
+    } else {
+      // Read as text
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        setText(content);
+        setMode("paste");
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const submitFile = async (file, fileTitle) => {
+    setAnalyzing(true);
+    setProgress([]);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (fileTitle) formData.append("title", fileTitle);
+
+    try {
+      const resp = await fetch(`${SERVER_URL}/api/analyze`, {
+        method: "POST",
+        body: formData,
+      });
+      await handleSSEResponse(resp);
+    } catch (err) {
+      handleFetchError(err);
+    }
+  };
+
+  const submitText = async () => {
+    if (!text.trim()) return;
+    setAnalyzing(true);
+    setProgress([]);
+    setError(null);
+
+    try {
+      const resp = await fetch(`${SERVER_URL}/api/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: text,
+          title: title || "Uploaded Text",
+        }),
+      });
+      await handleSSEResponse(resp);
+    } catch (err) {
+      handleFetchError(err);
+    }
+  };
+
+  const handleFetchError = (err) => {
+    const offline = err.message.includes("Failed to fetch") || err.message.includes("NetworkError") || err.name === "TypeError";
+    setError(offline
+      ? "Local server not running. Start it with: cd pam_10k && python serve_novels.py"
+      : err.message
+    );
+    setAnalyzing(false);
+  };
+
+  const handleSSEResponse = async (resp) => {
+    if (!resp.ok && resp.headers.get("Content-Type")?.includes("application/json")) {
+      const errData = await resp.json();
+      setError(errData.error || `Server error ${resp.status}`);
+      setAnalyzing(false);
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE events
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // Keep incomplete line
+
+      let eventType = null;
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ") && eventType) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (eventType === "progress") {
+              setProgress(prev => {
+                const existing = prev.findIndex(p => p.stage === data.stage);
+                if (existing >= 0) {
+                  const updated = [...prev];
+                  updated[existing] = data;
+                  return updated;
+                }
+                return [...prev, data];
+              });
+            } else if (eventType === "rate") {
+              setRateInfo(data);
+            } else if (eventType === "result") {
+              // Store in window global and notify parent
+              window[`NOVEL_DATA_${data.novelId}`] = data;
+              if (onAnalysisComplete) onAnalysisComplete(data);
+              navigateTo({ view: "timeline", novelId: data.novelId });
+              setAnalyzing(false);
+              resetState();
+            } else if (eventType === "error") {
+              setError(data.message);
+              setAnalyzing(false);
+            } else if (eventType === "done") {
+              // Final event after result
+            }
+          } catch (e) {
+            // Skip malformed JSON
+          }
+          eventType = null;
+        }
+      }
+    }
+  };
+
+  const stageLabels = {
+    chunking: "Chunking text",
+    embedding: "Computing embeddings",
+    analyzing: "PAM association transform",
+    clustering: "Assigning clusters",
+    building: "Building timeline",
+    complete: "Complete",
+  };
+
+  const stageOrder = ["chunking", "embedding", "analyzing", "clustering", "building", "complete"];
+
+  if (analyzing) {
+    const currentStageIdx = progress.length > 0
+      ? stageOrder.indexOf(progress[progress.length - 1].stage)
+      : -1;
+    const progressPct = Math.min(100, ((currentStageIdx + 1) / (stageOrder.length)) * 100);
+
+    return (
+      <div style={{
+        padding: "24px", marginBottom: "20px", borderRadius: "8px",
+        backgroundColor: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}>
+        <div style={{ fontSize: "14px", color: "#c8cdd8", marginBottom: "16px", fontWeight: 500 }}>
+          Analyzing: {title || "Uploaded Text"}
+        </div>
+
+        {/* Progress bar */}
+        <div style={{
+          height: "4px", borderRadius: "2px",
+          backgroundColor: "rgba(255,255,255,0.06)",
+          marginBottom: "16px", overflow: "hidden",
+        }}>
+          <div style={{
+            height: "100%", borderRadius: "2px",
+            backgroundColor: "#6dba6d",
+            width: `${progressPct}%`,
+            transition: "width 0.5s ease-out",
+          }} />
+        </div>
+
+        {/* Stage list */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {stageOrder.map((stage, idx) => {
+            const stageData = progress.find(p => p.stage === stage);
+            const isActive = idx === currentStageIdx;
+            const isDone = idx < currentStageIdx || stage === "complete" && stageData;
+            const isPending = !stageData && !isDone;
+
+            return (
+              <div key={stage} style={{
+                fontSize: "12px", display: "flex", alignItems: "center", gap: "8px",
+                color: isActive ? "#c8cdd8" : isDone ? "#6dba6d" : "#3a4458",
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              }}>
+                <span style={{ width: "14px", textAlign: "center" }}>
+                  {isDone ? "\u2713" : isActive ? "\u25CF" : "\u25CB"}
+                </span>
+                <span>{stageLabels[stage] || stage}</span>
+                {stageData && stageData.detail && (
+                  <span style={{ color: "#5a6478", fontSize: "11px" }}>
+                    — {stageData.detail}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {rateInfo && (
+          <div style={{
+            marginTop: "12px", fontSize: "11px", color: "#5a6478",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          }}>
+            {rateInfo.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      marginBottom: "20px", borderRadius: "8px",
+      backgroundColor: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        borderBottom: mode ? "1px solid rgba(255,255,255,0.04)" : "none",
+      }}>
+        <div>
+          <span style={{ fontSize: "13px", color: "#c8cdd8", fontWeight: 500 }}>
+            Analyze Your Own Text
+          </span>
+          <span style={{ fontSize: "12px", color: "#5a6478", marginLeft: "12px" }}>
+            Paste text or upload .txt/.epub
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {!mode && (
+            <>
+              <button onClick={() => setMode("paste")} style={{
+                padding: "6px 14px", border: "1px solid rgba(109,186,109,0.3)",
+                borderRadius: "6px", backgroundColor: "rgba(109,186,109,0.1)",
+                color: "#6dba6d", fontSize: "12px", cursor: "pointer",
+                transition: "all 0.15s",
+              }}>Paste Text</button>
+              <button onClick={() => fileInputRef.current?.click()} style={{
+                padding: "6px 14px", border: "1px solid rgba(124,138,160,0.3)",
+                borderRadius: "6px", backgroundColor: "rgba(124,138,160,0.1)",
+                color: "#7c8aa0", fontSize: "12px", cursor: "pointer",
+                transition: "all 0.15s",
+              }}>Upload File</button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.epub"
+                style={{ display: "none" }}
+                onChange={(e) => handleFileSelect(e.target.files?.[0])}
+              />
+            </>
+          )}
+          {mode && (
+            <button onClick={resetState} style={{
+              padding: "4px 10px", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "4px", backgroundColor: "transparent",
+              color: "#5a6478", fontSize: "11px", cursor: "pointer",
+            }}>Cancel</button>
+          )}
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{
+          padding: "10px 20px", fontSize: "12px",
+          color: "#c87070", backgroundColor: "rgba(200,112,112,0.08)",
+          borderBottom: "1px solid rgba(200,112,112,0.15)",
+        }}>
+          {error}
+        </div>
+      )}
+
+      {/* Paste mode */}
+      {mode === "paste" && (
+        <div style={{ padding: "16px 20px" }}>
+          <div style={{ marginBottom: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title (optional)"
+              style={{
+                padding: "6px 10px", width: "240px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "4px", backgroundColor: "rgba(0,0,0,0.2)",
+                color: "#c8cdd8", fontSize: "12px", outline: "none",
+                fontFamily: "inherit",
+              }}
+            />
+            <span style={{ fontSize: "11px", color: "#5a6478" }}>
+              Trained on English texts; other languages are exploratory
+            </span>
+          </div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            style={{
+              border: dragOver ? "2px dashed rgba(109,186,109,0.5)" : "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "6px", transition: "border 0.15s",
+            }}
+          >
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Paste your novel text here... (minimum ~2,500 words for meaningful analysis)\n\nOr drag & drop a .txt file"
+              style={{
+                width: "100%", minHeight: "180px", padding: "12px",
+                border: "none", borderRadius: "6px",
+                backgroundColor: "rgba(0,0,0,0.2)",
+                color: "#c8cdd8", fontSize: "12px", lineHeight: "1.6",
+                outline: "none", resize: "vertical",
+                fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+              }}
+            />
+          </div>
+          <div style={{
+            marginTop: "10px", display: "flex", justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <span style={{
+              fontSize: "11px", color: "#5a6478",
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            }}>
+              {text.length > 0 ? `${text.length.toLocaleString()} characters` : ""}
+            </span>
+            <button
+              onClick={submitText}
+              disabled={!text.trim()}
+              style={{
+                padding: "8px 20px",
+                border: text.trim() ? "1px solid rgba(109,186,109,0.4)" : "1px solid rgba(255,255,255,0.06)",
+                borderRadius: "6px",
+                backgroundColor: text.trim() ? "rgba(109,186,109,0.15)" : "rgba(255,255,255,0.02)",
+                color: text.trim() ? "#6dba6d" : "#3a4458",
+                fontSize: "13px", fontWeight: 500, cursor: text.trim() ? "pointer" : "default",
+                transition: "all 0.15s",
+              }}
+            >
+              Analyze
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Book List ───────────────────────────────────────────────
+function getBookIndexFull() {
+  return window.BOOK_INDEX_FULL || window.BOOK_INDEX || [];
+}
+
+const TIME_PERIODS = [
+  { label: "All", min: 0, max: 9999 },
+  { label: "Pre-1800", min: 0, max: 1799 },
+  { label: "1800–1850", min: 1800, max: 1850 },
+  { label: "1850–1900", min: 1851, max: 1900 },
+  { label: "1900–1950", min: 1901, max: 1950 },
+  { label: "Unknown", min: null, max: null },
+];
+
+const LENGTH_BUCKETS = [
+  { label: "All", min: 0, max: Infinity },
+  { label: "Short (<50)", min: 0, max: 49 },
+  { label: "Medium (50–200)", min: 50, max: 200 },
+  { label: "Long (>200)", min: 201, max: Infinity },
+];
+
+const STATUS_OPTIONS = ["All", "In Training", "Held Out", "Pre-loaded"];
+
+function BookList({ navigateTo, onAnalysisComplete }) {
+  const [search, setSearch] = useState("");
+  const [selectedGenres, setSelectedGenres] = useState(new Set());
+  const [timePeriod, setTimePeriod] = useState(TIME_PERIODS[0]);
+  const [lengthBucket, setLengthBucket] = useState(LENGTH_BUCKETS[0]);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("title");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [genreDropdownOpen, setGenreDropdownOpen] = useState(false);
+  const genreRef = useRef(null);
+
+  const allBooks = useMemo(() => getBookIndexFull(), []);
+
+  // Extract all unique genres for the multi-select
+  const allGenres = useMemo(() => {
+    const counts = {};
+    allBooks.forEach(b => {
+      (b.genres || []).forEach(g => { counts[g] = (counts[g] || 0) + 1; });
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 60)
+      .map(([g, c]) => ({ genre: g, count: c }));
+  }, [allBooks]);
+
+  // Close genre dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (genreRef.current && !genreRef.current.contains(e.target)) setGenreDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Pre-loaded novel IDs
+  const preloadedIds = useMemo(() => {
+    const ids = new Set();
+    NOVEL_IDS.forEach(id => { if (getNovelData(id)) ids.add(id); });
+    return ids;
+  }, []);
+
+  // Filter books
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return allBooks.filter(b => {
+      // Search
+      if (q && !b.title.toLowerCase().includes(q) && !b.author.toLowerCase().includes(q) && !String(b.id).includes(q)) return false;
+      // Genre
+      if (selectedGenres.size > 0) {
+        const bookGenres = b.genres || [];
+        if (!bookGenres.some(g => selectedGenres.has(g))) return false;
+      }
+      // Time period
+      if (timePeriod.min === null) {
+        if (b.year) return false; // "Unknown" = only books without year
+      } else if (timePeriod.min !== 0 || timePeriod.max !== 9999) {
+        if (!b.year || b.year < timePeriod.min || b.year > timePeriod.max) return false;
+      }
+      // Length
+      if (b.chunks < lengthBucket.min || b.chunks > lengthBucket.max) return false;
+      // Status
+      if (statusFilter === "In Training" && !b.inTraining) return false;
+      if (statusFilter === "Held Out" && b.inTraining) return false;
+      if (statusFilter === "Pre-loaded" && !preloadedIds.has(b.id)) return false;
+      return true;
+    });
+  }, [allBooks, search, selectedGenres, timePeriod, lengthBucket, statusFilter, preloadedIds]);
+
+  // Sort
+  const sorted = useMemo(() => {
+    const s = [...filtered];
+    s.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "title") cmp = a.title.localeCompare(b.title);
+      else if (sortBy === "author") cmp = a.author.localeCompare(b.author);
+      else if (sortBy === "year") cmp = (a.year || 9999) - (b.year || 9999);
+      else if (sortBy === "chunks") cmp = a.chunks - b.chunks;
+      else if (sortBy === "id") cmp = a.id - b.id;
+      return sortAsc ? cmp : -cmp;
+    });
+    return s;
+  }, [filtered, sortBy, sortAsc]);
+
+  // Paginate for performance
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
+  const pageBooks = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(0); }, [search, selectedGenres, timePeriod, lengthBucket, statusFilter, sortBy, sortAsc]);
+
+  const handleSort = (col) => {
+    if (sortBy === col) setSortAsc(!sortAsc);
+    else { setSortBy(col); setSortAsc(true); }
+  };
+
+  const toggleGenre = (g) => {
+    setSelectedGenres(prev => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g); else next.add(g);
+      return next;
+    });
+  };
+
+  const handleBookClick = (book) => {
+    navigateTo({ view: "timeline", novelId: book.id });
+  };
+
+  // Build summary line
+  const summaryParts = [];
+  if (selectedGenres.size > 0) summaryParts.push([...selectedGenres].slice(0, 3).join(", ") + (selectedGenres.size > 3 ? ` +${selectedGenres.size - 3}` : ""));
+  if (timePeriod.label !== "All") summaryParts.push(timePeriod.label);
+  if (lengthBucket.label !== "All") summaryParts.push(lengthBucket.label);
+  if (statusFilter !== "All") summaryParts.push(statusFilter);
+  const summaryExtra = summaryParts.length > 0 ? ` · ${summaryParts.join(" · ")}` : "";
+
+  const pillBtn = (label, active, onClick) => (
+    <button onClick={onClick} style={{
+      padding: "4px 10px", border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: "12px", backgroundColor: active ? "rgba(124,138,160,0.2)" : "transparent",
+      color: active ? "#c8cdd8" : "#5a6478", fontSize: "11px", cursor: "pointer",
+      transition: "all 0.15s",
+    }}>{label}</button>
+  );
+
+  const sortArrow = (col) => sortBy === col ? (sortAsc ? " ▲" : " ▼") : "";
+
+  return (
+    <div>
+      {/* Upload section */}
+      <AnalyzeUpload navigateTo={navigateTo} onAnalysisComplete={onAnalysisComplete} />
+
+      {/* Summary line */}
+      <div style={{ marginBottom: "16px", fontSize: "13px", color: "#7c8aa0" }}>
+        Showing {sorted.length.toLocaleString()} of {allBooks.length.toLocaleString()} books{summaryExtra}
+      </div>
+
+      {/* Filter bar */}
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center",
+        marginBottom: "16px", padding: "12px 16px",
+        backgroundColor: "rgba(255,255,255,0.02)", borderRadius: "8px",
+        border: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        {/* Search */}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search title, author, or ID..."
+          style={{
+            padding: "6px 12px", width: "220px", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "6px", backgroundColor: "rgba(0,0,0,0.2)", color: "#c8cdd8",
+            fontSize: "12px", outline: "none", fontFamily: "inherit",
+          }}
+        />
+
+        {/* Genre multi-select */}
+        <div ref={genreRef} style={{ position: "relative" }}>
+          <button onClick={() => setGenreDropdownOpen(!genreDropdownOpen)} style={{
+            padding: "6px 12px", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "6px", backgroundColor: selectedGenres.size > 0 ? "rgba(124,138,160,0.15)" : "rgba(0,0,0,0.2)",
+            color: selectedGenres.size > 0 ? "#c8cdd8" : "#5a6478", fontSize: "12px", cursor: "pointer",
+          }}>
+            {selectedGenres.size > 0 ? `Genres (${selectedGenres.size})` : "Genre ▾"}
+          </button>
+          {genreDropdownOpen && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, marginTop: "4px", zIndex: 100,
+              width: "280px", maxHeight: "300px", overflowY: "auto",
+              backgroundColor: "#1e2230", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}>
+              {selectedGenres.size > 0 && (
+                <button onClick={() => setSelectedGenres(new Set())} style={{
+                  width: "100%", padding: "6px 12px", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  backgroundColor: "transparent", color: "#7c8aa0", fontSize: "11px",
+                  cursor: "pointer", textAlign: "left",
+                }}>Clear all</button>
+              )}
+              {allGenres.map(({ genre, count }) => (
+                <label key={genre} style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  padding: "5px 12px", cursor: "pointer", fontSize: "11px",
+                  color: selectedGenres.has(genre) ? "#c8cdd8" : "#7c8aa0",
+                  backgroundColor: selectedGenres.has(genre) ? "rgba(124,138,160,0.1)" : "transparent",
+                }}>
+                  <input type="checkbox" checked={selectedGenres.has(genre)}
+                    onChange={() => toggleGenre(genre)}
+                    style={{ accentColor: "#7c8aa0" }} />
+                  <span style={{ flex: 1 }}>{genre}</span>
+                  <span style={{ color: "#3a4458", fontSize: "10px" }}>{count}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Time period */}
+        <div style={{ display: "flex", gap: "4px" }}>
+          {TIME_PERIODS.map(tp => pillBtn(tp.label, timePeriod === tp, () => setTimePeriod(tp)))}
+        </div>
+
+        {/* Length */}
+        <div style={{ display: "flex", gap: "4px" }}>
+          {LENGTH_BUCKETS.map(lb => pillBtn(lb.label, lengthBucket === lb, () => setLengthBucket(lb)))}
+        </div>
+
+        {/* Status */}
+        <div style={{ display: "flex", gap: "4px" }}>
+          {STATUS_OPTIONS.map(s => pillBtn(s, statusFilter === s, () => setStatusFilter(s)))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div style={{
+        border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px",
+        overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "60px 1fr 1fr 70px 1fr 70px 80px",
+          backgroundColor: "rgba(255,255,255,0.03)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          {[
+            { col: "id", label: "ID" },
+            { col: "title", label: "Title" },
+            { col: "author", label: "Author" },
+            { col: "year", label: "Year" },
+            { col: null, label: "Genre" },
+            { col: "chunks", label: "Chunks" },
+            { col: null, label: "Status" },
+          ].map(({ col, label }) => (
+            <div key={label} onClick={col ? () => handleSort(col) : undefined} style={{
+              padding: "10px 12px", fontSize: "11px", fontWeight: 600,
+              color: sortBy === col ? "#c8cdd8" : "#5a6478",
+              cursor: col ? "pointer" : "default",
+              userSelect: "none", whiteSpace: "nowrap",
+            }}>
+              {label}{col ? sortArrow(col) : ""}
+            </div>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {pageBooks.map((book, i) => {
+          const isPreloaded = preloadedIds.has(book.id);
+          return (
+            <div
+              key={book.id}
+              onClick={() => handleBookClick(book)}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "60px 1fr 1fr 70px 1fr 70px 80px",
+                borderBottom: i < pageBooks.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none",
+                cursor: "pointer",
+                backgroundColor: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
+                transition: "background-color 0.1s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(124,138,160,0.08)"}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)"}
+            >
+              <div style={{ padding: "8px 12px", fontSize: "11px", color: "#3a4458" }}>
+                {book.id}
+              </div>
+              <div style={{
+                padding: "8px 12px", fontSize: "12px", color: "#c8cdd8",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                fontFamily: "'Crimson Pro', Georgia, serif",
+              }}>
+                {book.title}
+              </div>
+              <div style={{
+                padding: "8px 12px", fontSize: "11px", color: "#7c8aa0",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {book.author}
+              </div>
+              <div style={{ padding: "8px 12px", fontSize: "11px", color: "#5a6478" }}>
+                {book.year || "—"}
+              </div>
+              <div style={{
+                padding: "6px 12px", display: "flex", gap: "4px", flexWrap: "wrap",
+                overflow: "hidden", maxHeight: "32px",
+              }}>
+                {(book.genres || []).slice(0, 3).map(g => (
+                  <span key={g} style={{
+                    padding: "2px 6px", borderRadius: "8px", fontSize: "10px",
+                    backgroundColor: "rgba(124,138,160,0.1)", color: "#7c8aa0",
+                    whiteSpace: "nowrap",
+                  }}>{g}</span>
+                ))}
+              </div>
+              <div style={{
+                padding: "8px 12px", fontSize: "11px", color: "#5a6478", textAlign: "right",
+              }}>
+                {book.chunks.toLocaleString()}
+              </div>
+              <div style={{ padding: "8px 12px", fontSize: "10px" }}>
+                {isPreloaded ? (
+                  <span style={{ color: "#6bba75" }}>Pre-loaded</span>
+                ) : book.inTraining ? (
+                  <span style={{ color: "#5a6478" }}>Training</span>
+                ) : (
+                  <span style={{ color: "#7c8aa0" }}>Held out</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {sorted.length === 0 && (
+          <div style={{ padding: "32px", textAlign: "center", color: "#3a4458", fontSize: "13px" }}>
+            No books match the current filters.
+          </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{
+          display: "flex", justifyContent: "center", alignItems: "center",
+          gap: "8px", marginTop: "16px",
+        }}>
+          <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
+            style={{
+              padding: "4px 12px", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "6px", backgroundColor: "transparent",
+              color: page === 0 ? "#2a3040" : "#7c8aa0", fontSize: "12px", cursor: page === 0 ? "default" : "pointer",
+            }}>Prev</button>
+          <span style={{ fontSize: "12px", color: "#5a6478" }}>
+            Page {page + 1} of {totalPages}
+          </span>
+          <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}
+            style={{
+              padding: "4px 12px", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "6px", backgroundColor: "transparent",
+              color: page >= totalPages - 1 ? "#2a3040" : "#7c8aa0", fontSize: "12px",
+              cursor: page >= totalPages - 1 ? "default" : "pointer",
+            }}>Next</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Novel Selector Combo Box ────────────────────────────────
+function NovelSelector({ novelId, onSelect, loadedNovels, loadingNovelId, uploadedNovels }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (open && inputRef.current) inputRef.current.focus();
+  }, [open]);
+
+  const current = NOVELS[novelId] || (() => {
+    // Check uploaded novels
+    const uploaded = (uploadedNovels || []).find(u => u.id === novelId);
+    if (uploaded) return { title: uploaded.title, author: uploaded.author };
+    const idx = getBookIndex().find(b => b.id === novelId);
+    return idx ? { title: idx.title, author: idx.author } : { title: `Book #${novelId}` };
+  })();
+
+  const bookIndex = useMemo(() => getBookIndex(), []);
+
+  // Filter results
+  const searchLower = search.toLowerCase().trim();
+  const preloaded = useMemo(() => {
+    const items = NOVEL_IDS.map(id => {
+      const info = NOVELS[id];
+      const nd = getNovelData(id);
+      return { id, title: info.title, author: info.author, inTraining: nd?.inTraining, preloaded: true };
+    });
+    if (!searchLower) return items;
+    return items.filter(b =>
+      b.title.toLowerCase().includes(searchLower) ||
+      b.author.toLowerCase().includes(searchLower) ||
+      String(b.id).includes(searchLower)
+    );
+  }, [searchLower]);
+
+  const serverResults = useMemo(() => {
+    if (!searchLower || searchLower.length < 2) return [];
+    const preloadedIds = new Set(NOVEL_IDS);
+    return bookIndex
+      .filter(b => !preloadedIds.has(b.id) && (
+        b.title.toLowerCase().includes(searchLower) ||
+        (b.author || "").toLowerCase().includes(searchLower) ||
+        String(b.id).includes(searchLower)
+      ))
+      .slice(0, 50);
+  }, [searchLower, bookIndex]);
+
+  const inTrainingPre = preloaded.filter(b => b.inTraining);
+  const heldOutPre = preloaded.filter(b => !b.inTraining);
+
+  const sectionHeader = (label) => (
+    <div style={{
+      padding: "4px 14px", fontSize: "10px",
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      color: "#4a5468", textTransform: "uppercase",
+      letterSpacing: "1px", backgroundColor: "rgba(255,255,255,0.02)",
+      borderBottom: "1px solid rgba(255,255,255,0.04)",
+    }}>
+      {label}
+    </div>
+  );
+
+  const novelRow = (b, isServer = false) => {
+    const isActive = b.id === novelId;
+    const isLoading = b.id === loadingNovelId;
+    return (
+      <div key={b.id}
+        onClick={() => { onSelect(b.id); if (!isServer) setOpen(false); }}
+        style={{
+          padding: "8px 14px", cursor: "pointer",
+          backgroundColor: isActive ? "rgba(255,255,255,0.06)" : "transparent",
+          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          transition: "background-color 0.1s",
+          display: "flex", alignItems: "center", gap: "8px",
+        }}
+        onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+        onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = isActive ? "rgba(255,255,255,0.06)" : "transparent"; }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: "12px", color: isActive ? "#e8ecf4" : "#c8cdd8",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {b.title}
+          </div>
+          <div style={{
+            fontSize: "11px", color: "#5a6478",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          }}>
+            {b.author ? `${b.author} · ` : ""}#{b.id}{b.chunks ? ` · ${b.chunks.toLocaleString()} chunks` : ""}
+          </div>
+        </div>
+        {isLoading ? (
+          <span className="explain-pulse" style={{
+            fontSize: "11px", color: "#7c8aa0",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          }}>{"\u25CF"}</span>
+        ) : isServer ? (
+          <span style={{
+            fontSize: "11px", color: "#5a6478", flexShrink: 0,
+          }}>{"\u2913"}</span>
+        ) : b.isUpload ? (
+          <span style={{
+            fontSize: "10px", padding: "1px 6px", borderRadius: "3px",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            backgroundColor: "rgba(130,120,200,0.15)",
+            color: "#9088cc",
+            border: "1px solid rgba(130,120,200,0.25)",
+            flexShrink: 0,
+          }}>upload</span>
+        ) : (
+          <span style={{
+            fontSize: "10px", padding: "1px 6px", borderRadius: "3px",
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            backgroundColor: b.inTraining ? "rgba(109,186,109,0.15)" : "rgba(180,140,80,0.15)",
+            color: b.inTraining ? "#6dba6d" : "#b48c50",
+            border: b.inTraining ? "1px solid rgba(109,186,109,0.25)" : "1px solid rgba(180,140,80,0.25)",
+            flexShrink: 0,
+          }}>
+            {b.inTraining ? "train" : "held out"}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative", marginLeft: "auto" }}>
+      <button
+        onClick={() => { setOpen(!open); if (!open) setSearch(""); }}
+        style={{
+          padding: "5px 12px", borderRadius: "4px",
+          border: "1px solid rgba(255,255,255,0.15)",
+          backgroundColor: "rgba(255,255,255,0.04)",
+          color: "#c8cdd8", fontSize: "12px", cursor: "pointer",
+          display: "flex", alignItems: "center", gap: "8px",
+          minWidth: "200px",
+        }}
+      >
+        <span style={{ flex: 1, textAlign: "left" }}>{current?.title}</span>
+        <span style={{ color: "#5a6478", fontSize: "11px" }}>{"\u25BC"}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "100%", right: 0, marginTop: "4px",
+          backgroundColor: "#1a1b24", border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "6px", zIndex: 100, minWidth: "340px", width: "400px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          display: "flex", flexDirection: "column", maxHeight: "500px",
+        }}>
+          {/* Search input */}
+          <div style={{
+            padding: "8px 12px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search 9,766 novels..."
+              style={{
+                width: "100%", padding: "6px 10px", borderRadius: "4px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                backgroundColor: "rgba(255,255,255,0.04)",
+                color: "#c8cdd8", fontSize: "12px",
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                outline: "none",
+              }}
+              onFocus={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"}
+              onBlur={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}
+            />
+          </div>
+
+          {/* Results */}
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {/* Uploaded novels */}
+            {(uploadedNovels || []).length > 0 && sectionHeader("Your Uploads")}
+            {(uploadedNovels || []).map(u => novelRow({
+              id: u.id, title: u.title, author: u.author || "Your Upload",
+              chunks: u.numChunks, inTraining: false, isUpload: true,
+            }))}
+            {inTrainingPre.length > 0 && sectionHeader("In Training")}
+            {inTrainingPre.map(b => novelRow(b))}
+            {heldOutPre.length > 0 && sectionHeader("Held Out")}
+            {heldOutPre.map(b => novelRow(b))}
+            {serverResults.length > 0 && sectionHeader(`Corpus · ${serverResults.length} matches`)}
+            {serverResults.map(b => novelRow(b, true))}
+            {searchLower.length >= 2 && serverResults.length === 0 && preloaded.length === 0 && (
+              <div style={{
+                padding: "16px", textAlign: "center", color: "#4a5468",
+                fontSize: "12px", fontStyle: "italic",
+              }}>
+                No novels matching "{search}"
+              </div>
+            )}
+            {searchLower.length === 1 && (
+              <div style={{
+                padding: "8px 14px", color: "#4a5468",
+                fontSize: "12px", fontStyle: "italic",
+              }}>
+                Type 2+ characters to search full corpus
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────
+function PAM10KDemo() {
+  const [view, setView] = useState("timeline");
+  const [novelId, setNovelId] = useState(768);
+  const [explorerK, setExplorerK] = useState(100);
+  const [focusClusterId, setFocusClusterId] = useState(null);
+  const [fetchedNovels, setFetchedNovels] = useState({});
+  const [loadingNovelId, setLoadingNovelId] = useState(null);
+  const [serverError, setServerError] = useState(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const [targetChunkPos, setTargetChunkPos] = useState(null);
+  const [uploadedNovels, setUploadedNovels] = useState([]);
+
+  const clearFocus = useCallback(() => setFocusClusterId(null), []);
+
+  const handleAnalysisComplete = useCallback((data) => {
+    setFetchedNovels(prev => ({ ...prev, [data.novelId]: data }));
+    setUploadedNovels(prev => [...prev, {
+      id: data.novelId,
+      title: data.title,
+      author: data.author,
+      numChunks: data.numChunks,
+    }]);
+  }, []);
+
+  // Track which novels have loaded data
+  const loadedNovels = useMemo(() => {
+    const loaded = new Set();
+    NOVEL_IDS.forEach((id) => {
+      if (getNovelData(id)) loaded.add(id);
+    });
+    return loaded;
+  }, []);
+
+  const novelData = useMemo(() => getNovelData(novelId) || fetchedNovels[novelId] || null, [novelId, fetchedNovels]);
+  const chunks = novelData?.chunks || [];
+  const meta = useMemo(() => getMetadata(), []);
+
+  const handleSelectNovel = useCallback(async (id) => {
+    setNovelId(id);
+    setServerError(null);
+
+    // Already available — pre-loaded or previously fetched
+    if (getNovelData(id) || fetchedNovels[id]) return;
+
+    // Fetch from server
+    setLoadingNovelId(id);
+    try {
+      const resp = await fetch(`${SERVER_URL}/novel/${id}`);
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+      const data = await resp.json();
+      window[`NOVEL_DATA_${id}`] = data;
+      setFetchedNovels(prev => ({ ...prev, [id]: data }));
+    } catch (err) {
+      const offline = err.message.includes("Failed to fetch") || err.message.includes("NetworkError") || err.name === "TypeError";
+      setServerError(offline ? "server_offline" : err.message);
+    } finally {
+      setLoadingNovelId(null);
+    }
+  }, [fetchedNovels]);
+
+  const navigateTo = useCallback(({ view: v, novelId: nid, k, clusterId, chunkPos }) => {
+    if (v !== undefined) setView(v);
+    if (k !== undefined) setExplorerK(k);
+    setFocusClusterId(clusterId !== undefined ? clusterId : null);
+    setTargetChunkPos(chunkPos !== undefined ? chunkPos : null);
+    if (nid !== undefined) handleSelectNovel(nid);
+  }, [handleSelectNovel]);
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      backgroundColor: "#12131a",
+      color: "#c8cdd8",
+      fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+      padding: "0",
+    }}>
+      <style>{`@keyframes explainPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } } .explain-pulse { animation: explainPulse 1.5s infinite; }`}</style>
+      {/* Header */}
+      <div style={{
+        padding: "28px 32px 20px",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        background: "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%)",
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: "6px" }}>
+          <h1 style={{
+            margin: 0, fontSize: "22px", fontWeight: 600,
+            color: "#e8ecf4", letterSpacing: "-0.3px",
+          }}>
+            PAM Concept Discovery
+          </h1>
+          <span style={{
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "12px", color: "#4a5468",
+            padding: "2px 8px", borderRadius: "3px",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            10K Gutenberg · {meta?.numBooks?.toLocaleString() || "9,766"} novels · {meta?.numChunks?.toLocaleString() || "24.96M"} chunks
+          </span>
+          <span
+            onClick={() => setShowInfo(!showInfo)}
+            style={{
+              cursor: "pointer", fontSize: "14px", color: showInfo ? "#7c8aa0" : "#4a5468",
+              transition: "color 0.15s", marginLeft: "4px",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "#7c8aa0"}
+            onMouseLeave={(e) => e.currentTarget.style.color = showInfo ? "#7c8aa0" : "#4a5468"}
+            title="Server setup info"
+          >{"\u24D8"}</span>
+        </div>
+        <p style={{
+          margin: 0, fontSize: "13px", color: "#5a6478",
+          maxWidth: "680px", lineHeight: "1.5",
+        }}>
+          Predictive Associative Memory trained on {meta?.numBooks?.toLocaleString() || "10,000"} Project Gutenberg novels.
+          Clusters represent cross-author narrative functions discovered through temporal co-occurrence.
+        </p>
+      </div>
+
+      {/* Info panel */}
+      {showInfo && (
+        <div style={{
+          padding: "16px 32px",
+          backgroundColor: "rgba(255,255,255,0.02)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: "12px", color: "#7c8aa0", lineHeight: "2",
+          }}>
+            <div style={{ color: "#8892a4", marginBottom: "4px", fontWeight: 500 }}>
+              Full corpus access (9,766 novels)
+            </div>
+            <div style={{ color: "#5a6478" }}>
+              Start the local server to browse any novel in the training corpus:
+            </div>
+            <div style={{
+              padding: "8px 14px", margin: "6px 0", borderRadius: "4px",
+              backgroundColor: "rgba(0,0,0,0.3)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              color: "#c8cdd8",
+            }}>
+              cd pam_10k && python serve_novels.py --port 8080
+            </div>
+            <div style={{ color: "#5a6478", fontSize: "12px" }}>
+              Requires numpy. Loads ~1.5 GB of cluster labels on startup. Search for any novel in the dropdown.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "0",
+        padding: "0 32px",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        backgroundColor: "rgba(255,255,255,0.01)",
+      }}>
+        {[
+          { id: "timeline", label: "Narrative Timeline" },
+          { id: "heldout", label: "Hierarchical View" },
+          { id: "allnovels", label: "Cluster Explorer" },
+          { id: "booklist", label: "Book List" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id)}
+            style={{
+              padding: "14px 20px", border: "none",
+              borderBottom: view === tab.id ? "2px solid #7c8aa0" : "2px solid transparent",
+              backgroundColor: "transparent",
+              color: view === tab.id ? "#e8ecf4" : "#5a6478",
+              fontSize: "13px", fontWeight: view === tab.id ? 500 : 400,
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+
+        {/* Novel selector — dropdown for timeline and heldout views */}
+        {(view === "timeline" || view === "heldout") && (
+          <NovelSelector
+            novelId={novelId}
+            onSelect={handleSelectNovel}
+            loadedNovels={loadedNovels}
+            loadingNovelId={loadingNovelId}
+            uploadedNovels={uploadedNovels}
+          />
+        )}
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: "24px 32px 48px" }}>
+        {/* Novel header for timeline/heldout */}
+        {(view === "timeline" || view === "heldout") && novelData && (
+          <div style={{
+            display: "flex", alignItems: "baseline", gap: "12px",
+            marginBottom: "20px",
+          }}>
+            <h2 style={{
+              margin: 0, fontSize: "18px", fontWeight: 500, color: "#c8cdd8",
+              fontFamily: "'Crimson Pro', Georgia, serif", fontStyle: "italic",
+            }}>
+              {novelData.title}
+            </h2>
+            <span style={{ fontSize: "13px", color: "#5a6478" }}>
+              {novelData.author}
+            </span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: "12px", color: "#4a5468",
+            }}>
+              {novelData.isUpload ? "" : `Gutenberg #${novelId} · `}{chunks.length} chunks
+            </span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: "11px",
+              padding: "2px 8px", borderRadius: "3px",
+              backgroundColor: novelData.isUpload
+                ? "rgba(130, 120, 200, 0.15)"
+                : novelData.inTraining
+                  ? "rgba(109, 186, 109, 0.15)"
+                  : "rgba(180, 140, 80, 0.15)",
+              color: novelData.isUpload ? "#9088cc"
+                : novelData.inTraining ? "#6dba6d" : "#b48c50",
+              border: novelData.isUpload
+                ? "1px solid rgba(130, 120, 200, 0.3)"
+                : novelData.inTraining
+                  ? "1px solid rgba(109, 186, 109, 0.3)"
+                  : "1px solid rgba(180, 140, 80, 0.3)",
+            }}>
+              {novelData.isUpload ? "your upload" : novelData.inTraining ? "in training" : "held out"}
+            </span>
+          </div>
+        )}
+
+        {(view === "timeline" || view === "heldout") && loadingNovelId && (
+          <div style={{
+            padding: "64px", textAlign: "center",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: "16px",
+          }}>
+            <span className="explain-pulse" style={{ fontSize: "24px", color: "#5a6478" }}>{"\u25CF"}</span>
+            <span style={{ fontSize: "13px", color: "#5a6478" }}>
+              Loading novel from server...
+            </span>
+          </div>
+        )}
+
+        {(view === "timeline" || view === "heldout") && !novelData && !loadingNovelId && serverError && (
+          <div style={{
+            padding: "48px", textAlign: "center", maxWidth: "480px", margin: "0 auto",
+          }}>
+            {serverError === "server_offline" ? (
+              <>
+                <div style={{ fontSize: "14px", color: "#b48c50", marginBottom: "16px" }}>
+                  Local server not running
+                </div>
+                <div style={{
+                  fontSize: "12px", color: "#5a6478", lineHeight: "1.8",
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  textAlign: "left", padding: "16px 20px", borderRadius: "6px",
+                  backgroundColor: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}>
+                  <div style={{ color: "#7c8aa0", marginBottom: "8px" }}>To browse all 9,766 novels, start the server:</div>
+                  <div style={{ color: "#c8cdd8" }}>cd pam_10k</div>
+                  <div style={{ color: "#c8cdd8" }}>python serve_novels.py --port 8080</div>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: "13px", color: "#b48c50" }}>
+                Error loading novel: {serverError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(view === "timeline" || view === "heldout") && !novelData && !loadingNovelId && !serverError && (
+          <div style={{
+            padding: "48px", textAlign: "center", color: "#5a6478",
+            fontSize: "14px",
+          }}>
+            No data loaded for this novel. Include the corresponding data file.
+          </div>
+        )}
+
+        {view === "timeline" && chunks.length > 0 && (
+          <NarrativeTimeline novelId={novelId} chunks={chunks} navigateTo={navigateTo}
+            targetChunkPos={targetChunkPos} onClearTarget={() => setTargetChunkPos(null)} />
+        )}
+        {view === "heldout" && chunks.length > 0 && (
+          <HeldOutNovel novelId={novelId} chunks={chunks} navigateTo={navigateTo} />
+        )}
+        {view === "allnovels" && (
+          <ClusterExplorer
+            selectedK={explorerK}
+            onChangeK={setExplorerK}
+            focusClusterId={focusClusterId}
+            onClearFocus={clearFocus}
+            navigateTo={navigateTo}
+          />
+        )}
+        {view === "booklist" && (
+          <BookList navigateTo={navigateTo} onAnalysisComplete={handleAnalysisComplete} />
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: "16px 32px",
+        borderTop: "1px solid rgba(255,255,255,0.04)",
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontSize: "11px", color: "#3a4458",
+        display: "flex", justifyContent: "space-between",
+      }}>
+        <span>Eridos AI · PAM 10K · {meta?.modelParams || "29.4M"} params · {meta?.architecture || "8L/2048h"} · epoch {meta?.epoch || 150} · {meta?.accuracy || 42.75}% accuracy</span>
+        <span>Explanations generated by Claude Sonnet 4.5. Provided by Eridos AI.</span>
+      </div>
+    </div>
+  );
+}
+
+const loading = document.getElementById("loading");
+if (loading) loading.style.display = "none";
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(PAM10KDemo));
+  </script>
+</body>
+</html>

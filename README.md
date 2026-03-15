@@ -32,37 +32,33 @@ Association-space clusters group by transition structure (narrative function, di
 ## Repository Contents
 
 ```
-Concept-Discovery/
+PAM-Concept-Discovery/
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
 │
+├── utils/                    # Shared configuration and utilities
+│   ├── config.py
+│   └── faiss_utils.py
+│
 ├── 01_download_corpus/       # Gutenberg corpus download via Gutendex API
-│   ├── download_gutenberg.py
-│   └── README.md
+│   └── download_gutenberg.py
 │
-├── 02_chunk_and_embed/       # Chunking (50-token, 15-overlap) and BGE embedding
+├── 02_chunk_and_embed/       # Token-based chunking and BGE embedding
 │   ├── chunk_texts.py
-│   ├── embed_chunks.py
-│   └── README.md
+│   └── embed_chunks.py
 │
-├── 03_extract_pairs/         # Temporal co-occurrence pair extraction (±15 chunks)
-│   ├── extract_pairs.py
-│   └── README.md
+├── 03_extract_pairs/         # Temporal co-occurrence pair extraction
+│   └── extract_pairs.py
 │
-├── 04_train/                 # Contrastive MLP training
-│   ├── train.py
-│   ├── model.py
-│   └── README.md
+├── 04_train/                 # Contrastive MLP training (model + training loop)
+│   └── train.py
 │
-├── 05_cluster/               # k-means clustering at 6 granularities
-│   ├── cluster.py
-│   ├── quality_filters.py
-│   └── README.md
+├── 05_cluster/               # k-means clustering in PAM association space
+│   └── cluster.py
 │
 ├── 06_label/                 # LLM cluster labelling via Anthropic Batch API
-│   ├── label_clusters.py
-│   └── README.md
+│   └── label_clusters.py
 │
 ├── 07_evaluate/              # Baselines, controls, and unseen-novel evaluation
 │   ├── bge_baseline.py
@@ -70,15 +66,16 @@ Concept-Discovery/
 │   ├── random_mlp_baseline.py
 │   ├── validation_controls.py
 │   ├── unseen_novel_eval.py
-│   └── README.md
+│   └── metrics.py
 │
-├── demo/                     # Interactive demo (static HTML)
+├── demo/                     # Interactive demo (static HTML + pre-loaded data)
 │   ├── index.html
-│   └── README.md
+│   ├── worker.js
+│   └── demo_data/
 │
 ├── data/                     # Pre-computed outputs (see Data section)
 │   ├── cluster_assignments/
-│   ├── cluster_labels/
+│   ├── cluster_labels/       # LLM-generated labels (included)
 │   ├── centroids/
 │   └── model_checkpoint/
 │
@@ -89,8 +86,6 @@ Concept-Discovery/
     ├── fig4_selectivity.png
     └── fig5_authorial_signatures.png
 ```
-
-> **Note:** The directory structure above reflects the intended final layout. Adjust paths to match the actual script names and locations in your codebase when populating the repo.
 
 ## Reproduction
 
