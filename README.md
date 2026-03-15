@@ -4,9 +4,9 @@
 
 Code, data, and interactive demo for the paper *"From Topic to Transition Structure: Unsupervised Concept Discovery at Corpus Scale via Predictive Associative Memory"* by Jason Dury (Eridos AI).
 
-**[Interactive Demo](https://eridos.ai/demo)** · **[Demo Guide](https://eridos.ai/concept-discovery)** · **[Paper (arXiv)](TODO)** · **[Data (Zenodo)](https://doi.org/10.5281/zenodo.19030088)** · **[Eridos AI](https://eridos.ai)**
+**[Interactive Demo](https://eridos.ai/demo)** · **[Demo Guide](https://eridos.ai/concept-discovery)** · **[Paper (arXiv)](TODO)** · **[Data (Zenodo)](https://doi.org/10.5281/zenodo.19030087)** · **[Eridos AI](https://eridos.ai)**
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19030088.svg)](https://doi.org/10.5281/zenodo.19030088)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19030087.svg)](https://doi.org/10.5281/zenodo.19030087)
 
 ---
 
@@ -164,7 +164,7 @@ Pre-computed outputs are available for download:
 | `model_checkpoint.pt` | ~120 MB | Trained association model (29.4M params) |
 | `chunk_text.jsonl` | ~6.9 GB | Raw passage text with byte-offset index |
 
-> **Download:** [`pam-concept-discovery-data-v1.tar.gz`](https://doi.org/10.5281/zenodo.19030088) (418 MB) — extract into `data/` with `tar -xzf pam-concept-discovery-data-v1.tar.gz -C data/`
+> **Download:** [`pam-concept-discovery-data-v1.tar.gz`](https://doi.org/10.5281/zenodo.19030087) (418 MB) — extract into `data/` with `tar -xzf pam-concept-discovery-data-v1.tar.gz -C data/`
 
 The raw corpus is not redistributed. Texts are downloaded directly from Project Gutenberg via the Gutendex API using the download script.
 
