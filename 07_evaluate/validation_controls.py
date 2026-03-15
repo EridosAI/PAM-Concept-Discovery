@@ -13,6 +13,10 @@ Usage:
     python 07_evaluate/validation_controls.py --ablation shuffle
 """
 
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+
 import os
 import json
 import random
@@ -24,14 +28,11 @@ import pandas as pd
 from tqdm import tqdm
 
 from utils.config import Config
-from src.evaluation.metrics import evaluate_queries, compute_median_similarity
-from src.evaluation.scale_evaluation import (
-    load_model, make_retrieval_fns, remap_queries_to_subset, build_novel_subset
-)
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "04_train"))
-from train import AssociationMLP, train, PairDataset
-from src.training.generate_pairs import generate_temporal_pairs
+from metrics import evaluate_queries, compute_median_similarity
+from scale_evaluation import load_model, make_retrieval_fns
+
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "03_extract_pairs"))
+from extract_pairs import generate_temporal_pairs
 
 
 # ---------------------------------------------------------------------------

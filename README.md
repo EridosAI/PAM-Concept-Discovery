@@ -114,41 +114,41 @@ pip install -r requirements.txt
 To verify claims without rerunning the full pipeline, download the pre-computed data (see Data section) and run the evaluation scripts directly:
 
 ```bash
-# Unseen novel evaluation
-python 07_evaluate/unseen_novel_eval.py --data-dir data/ --novel "Pride and Prejudice"
+# Unseen novel evaluation (no CLI args — paths configured via data/ layout)
+python 07_evaluate/unseen_novel_eval.py
 
 # Validation controls
-python 07_evaluate/validation_controls.py --data-dir data/ --k 100
+python 07_evaluate/validation_controls.py --ablation shuffle
 ```
 
 ### Full pipeline
 
 ```bash
-# 1. Download corpus
-python 01_download_corpus/download_gutenberg.py --n 10000
+# 1. Download corpus (--max sets book count; default 250)
+python 01_download_corpus/download_gutenberg.py --max 10000
 
-# 2. Chunk and embed
-python 02_chunk_and_embed/chunk_texts.py --chunk-size 50 --overlap 15
-python 02_chunk_and_embed/embed_chunks.py --model bge-large-en-v1.5
+# 2. Chunk and embed (no CLI args — uses Config defaults: 256 tokens, 64 overlap, BGE-large-en-v1.5)
+python 02_chunk_and_embed/chunk_texts.py
+python 02_chunk_and_embed/embed_chunks.py
 
-# 3. Extract co-occurrence pairs
+# 3. Extract co-occurrence pairs (--window sets temporal window; default 3)
 python 03_extract_pairs/extract_pairs.py --window 15
 
-# 4. Train association model
-python 04_train/train.py --epochs 150 --batch-size 512 --temperature 0.05
+# 4. Train association model (--epochs and --pairs are configurable; other hyperparams in utils/config.py)
+python 04_train/train.py --epochs 150
 
-# 5. Cluster at multiple resolutions
-python 05_cluster/cluster.py --k-values 50 100 250 500 1000 2000
+# 5. Cluster in PAM association space (no CLI args — edit K and parameters at top of script)
+python 05_cluster/cluster.py
 
-# 6. Label clusters (requires Anthropic API key)
-python 06_label/label_clusters.py --api-key $ANTHROPIC_API_KEY
+# 6. Label clusters (requires ANTHROPIC_API_KEY environment variable)
+ANTHROPIC_API_KEY=your-key python 06_label/label_clusters.py
 
 # 7. Evaluate
-python 07_evaluate/unseen_novel_eval.py --novels all
-python 07_evaluate/validation_controls.py --k 100
+python 07_evaluate/unseen_novel_eval.py
+python 07_evaluate/validation_controls.py
 ```
 
-> **Note:** Command-line interfaces shown above are illustrative. Check each script's `--help` or subdirectory README for exact arguments.
+> **Note:** Scripts without CLI arguments use defaults from `utils/config.py`. Edit that file or the constants at the top of each script to adjust parameters.
 
 ## Data
 

@@ -11,6 +11,10 @@ Usage:
     python 05_cluster/cluster.py
 """
 
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "04_train"))
+
 import os
 import gc
 import json
@@ -20,29 +24,35 @@ import torch
 from sklearn.cluster import MiniBatchKMeans
 
 from utils.config import Config
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "04_train"))
-from train import AssociationMLP
-# Note: these functions are from the scale evaluation module.
-# For standalone use, adapt data loading to your setup.
-from utils.config import Config  # noqa
+from model import AssociationMLP
 
 
-def load_v23_data(*args, **kwargs):
-    raise NotImplementedError("Adapt data loading paths for your setup")
+def load_v23_data(config):
+    """Load embeddings and chunk metadata. Adapt paths for your setup."""
+    import numpy as np, json
+    emb = np.load(os.path.join(config.embeddings_dir, "embeddings.npy"))
+    chunks_path = os.path.join(config.chunks_dir, "chunks.json")
+    with open(chunks_path) as f:
+        chunks = json.load(f)
+    chunk_ids = [c["chunk_id"] for c in chunks]
+    return chunks, emb, chunk_ids
 
 
-def load_book_ids_for_scale(*args, **kwargs):
-    raise NotImplementedError("Adapt data loading paths for your setup")
+def load_book_ids_for_scale(config, n, total):
+    """Load book ID list for a given scale point."""
+    path = os.path.join(config.base_dir, "data", "corpus", f"book_ids_{n}.txt")
+    if os.path.exists(path):
+        with open(path) as f:
+            return [int(line.strip()) for line in f if line.strip()]
+    return []
 
 
-def build_novel_subset_v23(*args, **kwargs):
-    raise NotImplementedError("Adapt data loading paths for your setup")
-
-# Original imports (commented out):
-# from src.evaluation.scale_massive import (
-    #load_v23_data, load_book_ids_for_scale, build_novel_subset_v23,
-# )
+def build_novel_subset_v23(chunks, embeddings, chunk_ids, book_ids):
+    """Filter embeddings to a subset of books."""
+    import numpy as np
+    book_set = set(book_ids)
+    indices = [i for i, c in enumerate(chunks) if c.get("book_id") in book_set]
+    return np.array(indices), embeddings[indices]
 
 
 K = 50          # number of clusters
