@@ -4,9 +4,9 @@
 
 Code, data, and interactive demo for the paper *"From Topic to Transition Structure: Unsupervised Concept Discovery at Corpus Scale via Predictive Associative Memory"* by Jason Dury (Eridos AI).
 
-**[Interactive Demo](https://eridos.ai/demo)** · **[Demo Guide](https://eridos.ai/concept-discovery)** · **[Paper (arXiv)](TODO)** · **[Data (Zenodo)](https://doi.org/10.5281/zenodo.19030087)** · **[Eridos AI](https://eridos.ai)**
+**[Interactive Demo](https://eridos.ai/demo)** · **[Demo Guide](https://eridos.ai/concept-discovery)** · **[Paper (arXiv)](https://arxiv.org/abs/2603.18420)** · **[Data (Zenodo)](https://doi.org/10.5281/zenodo.19030087)** · **[Eridos AI](https://eridos.ai)**
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19030087.svg)](https://doi.org/10.5281/zenodo.19030087)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19103984.svg)](https://doi.org/10.5281/zenodo.19103984)
 
 ---
 
